@@ -1,0 +1,2156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WWE Universe Mode Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #ffd700;
+            --secondary: #000;
+            --accent: #ff0000;
+            --light: #f5f5f5;
+            --border: #e0e0e0;
+            --success: #00d084;
+            --danger: #ff3b6f;
+            --info: #3b82f6;
+            --warning: #f59e0b;
+            --dark-bg: #1a1a1a;
+            --card-bg: #ffffff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: var(--secondary);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--secondary) 0%, #2a2a2a 100%);
+            color: var(--primary);
+            padding: 25px 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+        }
+
+        header h1 {
+            font-size: 2.8em;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        header p {
+            margin-top: 8px;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+
+        .nav-tabs button {
+            background: rgba(255, 215, 0, 0.1);
+            color: var(--primary);
+            border: 2px solid var(--primary);
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            font-size: 0.95em;
+        }
+
+        .nav-tabs button.active {
+            background: var(--primary);
+            color: var(--secondary);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+        }
+
+        .nav-tabs button:hover {
+            background: var(--primary);
+            color: var(--secondary);
+            transform: translateY(-2px);
+        }
+
+        .tab-content {
+            display: none;
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--accent);
+            padding-bottom: 10px;
+        }
+
+        .section-header h2 {
+            color: var(--secondary);
+            font-size: 1.8em;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            font-size: 0.95em;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: var(--secondary);
+        }
+
+        .btn-primary:hover {
+            background: #ffed4e;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #00c26f;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #ff1e54;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--secondary);
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid var(--border);
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 1em;
+            transition: all 0.2s;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.1);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            margin: 20px 0;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background: rgba(0, 208, 132, 0.2);
+            color: #00d084;
+        }
+
+        .badge-warning {
+            background: rgba(245, 158, 11, 0.2);
+            color: #f59e0b;
+        }
+
+        .badge-danger {
+            background: rgba(255, 59, 111, 0.2);
+            color: #ff3b6f;
+        }
+
+        .badge-info {
+            background: rgba(59, 130, 246, 0.2);
+            color: #3b82f6;
+        }
+
+        .card {
+            background: rgba(255, 215, 0, 0.05);
+            padding: 20px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid var(--primary);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .filter-section {
+            background: rgba(255, 215, 0, 0.05);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            border: 1px solid rgba(255, 215, 0, 0.2);
+        }
+
+        .filter-section select, .filter-section input {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-family: Arial, sans-serif;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 5px rgba(255, 0, 0, 0.3);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            margin: 20px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: var(--card-bg);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        thead {
+            background: linear-gradient(135deg, var(--secondary) 0%, #2a2a2a 100%);
+            color: var(--primary);
+        }
+
+        th, td {
+            padding: 14px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        tbody tr {
+            transition: all 0.2s ease;
+        }
+
+        tbody tr:hover {
+            background: rgba(255, 215, 0, 0.05);
+            box-shadow: inset 0 0 8px rgba(255, 215, 0, 0.1);
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge-danger {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .card {
+            background: var(--light);
+            padding: 20px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid var(--accent);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, var(--primary) 0%, #ffed4e 100%);
+            color: var(--secondary);
+            padding: 25px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 8px 16px rgba(255, 215, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 24px rgba(255, 215, 0, 0.3);
+        }
+
+        .stat-card h3 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .stat-card p {
+            font-size: 0.95em;
+            opacity: 0.85;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            animation: slideIn 0.3s;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 15px;
+        }
+
+        .modal-header h2 {
+            color: var(--secondary);
+            font-size: 1.6em;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.8em;
+            cursor: pointer;
+            color: var(--secondary);
+            transition: all 0.2s;
+        }
+
+        .close-btn:hover {
+            color: var(--danger);
+            transform: scale(1.2);
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        .filter-section {
+            background: var(--light);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .filter-section select, .filter-section input {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        table th {
+            cursor: pointer;
+            user-select: none;
+        }
+        table th:hover {
+            background: rgba(255,215,0,0.15);
+        }
+        table th.sort-asc::after { content: ' ▲'; font-size:0.75em; }
+        table th.sort-desc::after { content: ' ▼'; font-size:0.75em; }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .nav-tabs {
+                flex-direction: column;
+            }
+
+            .nav-tabs button {
+                width: 100%;
+            }
+
+            .section-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            header h1 {
+                font-size: 1.5em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎭 WWE Universe Mode Manager</h1>
+            <p>2K26 Roster Management System</p>
+            <div class="nav-tabs">
+                <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
+                <button class="nav-btn" data-tab="roster">Roster</button>
+                <button class="nav-btn" data-tab="matches">Matches</button>
+                <button class="nav-btn" data-tab="championships">Championships</button>
+                <button class="nav-btn" data-tab="transfers">Transfers</button>
+                <button class="nav-btn" data-tab="showsmgmt">Shows</button>
+                <button class="nav-btn" data-tab="setup">Season Setup</button>
+            </div>
+        </header>
+
+        <!-- Dashboard Tab -->
+        <div id="dashboard" class="tab-content active">
+            <div class="section-header">
+                <h2>📊 Dashboard</h2>
+            </div>
+
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-card">
+                    <h3 id="totalWrestlers">0</h3>
+                    <p>Total Wrestlers</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="activeMatches">0</h3>
+                    <p>Upcoming Matches</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="totalChampionships">0</h3>
+                    <p>Active Championships</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="totalShows">0</h3>
+                    <p>Brands</p>
+                </div>
+            </div>
+
+            <h3>Upcoming Matches</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Show</th>
+                            <th>Match Type</th>
+                            <th>Participants</th>
+                        </tr>
+                    </thead>
+                    <tbody id="upcomingMatches">
+                        <tr><td colspan="4" class="no-data">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3>Show Breakdown</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Show</th>
+                            <th>Wrestlers</th>
+                        </tr>
+                    </thead>
+                    <tbody id="showBreakdown">
+                        <tr><td colspan="2" class="no-data">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Roster Tab -->
+        <div id="roster" class="tab-content">
+            <div class="section-header">
+                <h2>👥 Roster Management</h2>
+                <button class="btn btn-primary" onclick="openAddWrestlerModal()">+ Add Wrestler</button>
+            </div>
+
+            <div class="filter-section">
+                <select id="rosterShowFilter" onchange="filterRoster()">
+                    <option value="">All Shows</option>
+                </select>
+                <input type="text" id="rosterSearch" placeholder="Search wrestlers..." onkeyup="filterRoster()">
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th data-table="roster" data-col="name">Name</th>
+                            <th data-table="roster" data-col="show">Show</th>
+                            <th data-table="roster" data-col="division">Division</th>
+                            <th data-table="roster" data-col="status">Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rosterTable">
+                        <tr><td colspan="5" class="no-data">Loading wrestlers...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Matches Tab -->
+        <div id="matches" class="tab-content">
+            <div class="section-header">
+                <h2>🎯 Match Management</h2>
+                <button class="btn btn-primary" onclick="openAddMatchModal()">+ Schedule Match</button>
+            </div>
+
+            <div class="filter-section">
+                <select id="matchShowFilter" onchange="filterMatches()">
+                    <option value="">All Shows</option>
+                </select>
+                <select id="matchStatusFilter" onchange="filterMatches()">
+                    <option value="">All Statuses</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Completed">Completed</option>
+                </select>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th data-table="matches" data-col="date">Date</th>
+                            <th data-table="matches" data-col="show">Show</th>
+                            <th data-table="matches" data-col="type">Type</th>
+                            <th>Participants</th>
+                            <th data-table="matches" data-col="result">Status</th>
+                            <th data-table="matches" data-col="winner">Winner</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="matchesTable">
+                        <tr><td colspan="7" class="no-data">Loading matches...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Championships Tab -->
+        <div id="championships" class="tab-content">
+            <div class="section-header">
+                <h2>👑 Championships</h2>
+                <button class="btn btn-primary" onclick="openAddChampionshipModal()">+ Add Championship</button>
+            </div>
+
+            <div class="filter-section">
+                <select id="champShowFilter" onchange="filterChampionships()">
+                    <option value="">All Shows</option>
+                </select>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th data-table="champ" data-col="name">Title</th>
+                            <th data-table="champ" data-col="show">Show</th>
+                            <th data-table="champ" data-col="holder">Current Holder</th>
+                            <th data-table="champ" data-col="debutDate">Debut Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="championshipsTable">
+                        <tr><td colspan="5" class="no-data">Loading championships...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Transfers Tab -->
+        <div id="transfers" class="tab-content">
+            <div class="section-header">
+                <h2>📋 Roster Transfers</h2>
+                <button class="btn btn-primary" onclick="openAddTransferModal()">+ New Transfer</button>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th data-table="transfers" data-col="wrestlerId">Wrestler</th>
+                            <th data-table="transfers" data-col="fromShow">From Show</th>
+                            <th data-table="transfers" data-col="toShow">To Show</th>
+                            <th data-table="transfers" data-col="date">Date</th>
+                            <th data-table="transfers" data-col="reason">Reason</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transfersTable">
+                        <tr><td colspan="5" class="no-data">Loading transfers...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Season Setup Tab -->
+        <div id="setup" class="tab-content">
+            <div class="section-header"><h2>⚙️ Season Setup</h2></div>
+
+            <div class="card">
+                <h3 style="margin-bottom:15px;">📅 Season Start Date</h3>
+                <p style="margin-bottom:15px;color:#555;">Set the week your season starts. All show dates will be calculated from this Monday onwards (RAW = Mon, TNA = Tue, AAA = Wed, AEW/NXT = Thu, SmackDown = Fri).</p>
+                <div class="form-row" style="max-width:500px;">
+                    <div class="form-group">
+                        <label>Season Start (any date in the week)</label>
+                        <input type="date" id="seasonStartDate">
+                    </div>
+                    <div class="form-group" style="display:flex;align-items:flex-end;">
+                        <button class="btn btn-primary" onclick="applySeasonStart()">Apply Start Date</button>
+                    </div>
+                </div>
+                <div id="seasonDatesPreview" style="margin-top:15px;"></div>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-bottom:15px;">📤 Export Current Data</h3>
+                <p style="margin-bottom:15px;color:#555;">Export your current roster and championships as CSV files. Fill in the data and re-import using the Import section below.</p>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button class="btn btn-primary" onclick="exportRosterCSV()">⬇ Export Roster CSV</button>
+                    <button class="btn btn-primary" onclick="exportChampionshipsCSV()">⬇ Export Championships CSV</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-bottom:15px;">📥 Import Updated Data</h3>
+                <p style="margin-bottom:15px;color:#555;">Re-import a filled CSV to update divisions, shows, and championship holders in bulk.</p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Import Roster CSV (columns: id, name, show, division, status)</label>
+                        <input type="file" id="importRosterFile" accept=".csv">
+                        <button class="btn btn-success" style="margin-top:8px;" onclick="importRosterCSV()">Import Roster CSV</button>
+                        <div id="importRosterResult" style="margin-top:8px;"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Import Championships CSV (columns: id, name, show, holder, debutDate)</label>
+                        <input type="file" id="importChampFile" accept=".csv">
+                        <button class="btn btn-success" style="margin-top:8px;" onclick="importChampCSV()">Import Championships CSV</button>
+                        <div id="importChampResult" style="margin-top:8px;"></div>
+                    </div>
+                </div>
+            </div>
+                <p style="margin-bottom:15px;color:#555;">Load all superstars from the default WWE 2K26 universe roster. <strong>This will add to existing wrestlers</strong> (duplicates skipped by name+show).</p>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button class="btn btn-success" onclick="importDefaultRoster()">Import Default Roster</button>
+                    <button class="btn btn-danger" onclick="clearAndImportRoster()">Clear All &amp; Import Fresh</button>
+                </div>
+                <div id="rosterImportResult" style="margin-top:15px;"></div>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-bottom:15px;">👑 Import Default Championships</h3>
+                <p style="margin-bottom:15px;color:#555;">Load all default championships with their current holders. <strong>This will add to existing championships</strong> (duplicates skipped by name+show).</p>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button class="btn btn-success" onclick="importDefaultChampionships()">Import Default Championships</button>
+                    <button class="btn btn-danger" onclick="clearAndImportChampionships()">Clear All &amp; Import Fresh</button>
+                </div>
+                <div id="champImportResult" style="margin-top:15px;"></div>
+            </div>
+        </div>
+
+        <!-- Shows Management Tab -->
+        <div id="showsmgmt" class="tab-content">
+            <div class="section-header">
+                <h2>📺 Shows Management</h2>
+                <button class="btn btn-primary" onclick="openAddShowModal()">+ Add Show</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Abbreviation</th>
+                            <th>Broadcast Day</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="showsTable">
+                        <tr><td colspan="5" class="no-data">Loading shows...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="showModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="showModalTitle">Add Show</h2>
+                <button class="close-btn" onclick="closeModal('showModal')">&times;</button>
+            </div>
+            <form onsubmit="saveShow(event)">
+                <input type="hidden" id="showEditId">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Show Name *</label>
+                        <input type="text" id="showName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Abbreviation *</label>
+                        <input type="text" id="showAbbr" maxlength="5" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Broadcast Day <small>(leave blank — show won't appear in match/roster selects)</small></label>
+                    <select id="showDay">
+                        <option value="">No scheduled day</option>
+                        <option value="Monday">Monday</option>
+                        <option value="Tuesday">Tuesday</option>
+                        <option value="Wednesday">Wednesday</option>
+                        <option value="Thursday">Thursday</option>
+                        <option value="Friday">Friday</option>
+                        <option value="Saturday">Saturday</option>
+                        <option value="Sunday">Sunday</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('showModal')">Cancel</button>
+                    <button type="submit" class="btn btn-success">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="wrestlerModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add/Edit Wrestler</h2>
+                <button class="close-btn" onclick="closeModal('wrestlerModal')">&times;</button>
+            </div>
+            <form onsubmit="saveWrestler(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Name *</label>
+                        <input type="text" id="wrestlerName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Show *</label>
+                        <select id="wrestlerShow" required></select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Division</label>
+                        <select id="wrestlerDivision">
+                            <option value="Unassigned">Unassigned</option>
+                            <option value="Heavyweight">Heavyweight</option>
+                            <option value="Cruiserweight">Cruiserweight</option>
+                            <option value="Women's">Women's</option>
+                            <option value="Tag Team">Tag Team</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="wrestlerStatus">
+                            <option value="Active">Active</option>
+                            <option value="Injured">Injured</option>
+                            <option value="Inactive">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Image URL</label>
+                    <input type="url" id="wrestlerImage" placeholder="https://...">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('wrestlerModal')">Cancel</button>
+                    <button type="submit" class="btn btn-success">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="matchModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Schedule Match</h2>
+                <button class="close-btn" onclick="closeModal('matchModal')">&times;</button>
+            </div>
+            <form onsubmit="saveMatch(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Show *</label>
+                        <select id="matchShow" required onchange="onMatchTypeOrShowChange()"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Match Type</label>
+                        <select id="matchType" onchange="onMatchTypeOrShowChange()">
+                            <option value="One vs One">One vs One (1v1)</option>
+                            <option value="Triple Threat">Triple Threat (3-Way)</option>
+                            <option value="Fatal 4-Way">Fatal 4-Way (4-Way)</option>
+                            <option value="5-Way">5-Way</option>
+                            <option value="6-Way">6-Way</option>
+                            <option value="8-Way">8-Way</option>
+                            <option value="Two on Two">Two on Two (2v2)</option>
+                            <option value="Two on Two Mixed Tag">Two on Two Mixed Tag (2v2 Mixed)</option>
+                            <option value="Two on Two Tornado Tag">Two on Two Tornado Tag (2v2 Tornado)</option>
+                            <option value="Three on Three">Three on Three (3v3)</option>
+                            <option value="Three on Three Tornado Tag">Three on Three Tornado Tag (3v3 Tornado)</option>
+                            <option value="Four on Four">Four on Four (4v4)</option>
+                            <option value="Triple Threat Tornado Tag">Triple Threat Tornado Tag (3-Team Tornado)</option>
+                            <option value="4-Way Tornado Tag">4-Way Tornado Tag (4-Team Tornado)</option>
+                            <option value="One on Two">One on Two (1v2)</option>
+                            <option value="One on Two Tornado Tag">One on Two Tornado Tag (1v2 Tornado)</option>
+                            <option value="One on Three">One on Three (1v3)</option>
+                            <option value="Two on Three">Two on Three (2v3)</option>
+                            <option value="Handicap One on Two">Handicap One on Two (1v2)</option>
+                            <option value="Ambulance Match">Ambulance Match</option>
+                            <option value="Casket Match">Casket Match</option>
+                            <option value="Dumpster Match">Dumpster Match</option>
+                            <option value="I Quit Match">I Quit Match</option>
+                            <option value="Inferno Match">Inferno Match</option>
+                            <option value="3 Stages of Hell">3 Stages of Hell</option>
+                            <option value="Battle Royal">Battle Royal (Multi 8+)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Date *</label>
+                    <input type="datetime-local" id="matchDate" required>
+                </div>
+                <div id="participantsGrid"></div>
+                <div id="crossShowNote" style="display:none;color:#f59e0b;font-size:0.85em;margin-bottom:10px;">⚠️ Cross-show match — all superstars available</div>
+                <div class="form-group">
+                    <label>Notes</label>
+                    <textarea id="matchNotes" rows="3"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('matchModal')">Cancel</button>
+                    <button type="submit" class="btn btn-success">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="championshipModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="champModalTitle">Add Championship</h2>
+                <button class="close-btn" onclick="closeModal('championshipModal')">&times;</button>
+            </div>
+            <form onsubmit="saveChampionship(event)">
+                <input type="hidden" id="champId">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Title Name *</label>
+                        <input type="text" id="champName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Show *</label>
+                        <select id="champShow" required onchange="onChampShowChange()"></select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Current Holder</label>
+                        <select id="champHolder">
+                            <option value="Vacant">Vacant</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Debut Date *</label>
+                        <input type="date" id="champDebutDate" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Notes</label>
+                    <textarea id="champNotes" rows="3"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('championshipModal')">Cancel</button>
+                    <button type="submit" class="btn btn-success">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="transferModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Record Transfer</h2>
+                <button class="close-btn" onclick="closeModal('transferModal')">&times;</button>
+            </div>
+            <form onsubmit="saveTransfer(event)">
+                <div class="form-group">
+                    <label>Wrestler *</label>
+                    <select id="transferWrestler" required><option value="">Select Superstar — select From Show first</option></select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>From Show *</label>
+                        <select id="transferFrom" required onchange="onTransferFromChange()"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>To Show *</label>
+                        <select id="transferTo" required></select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Date *</label>
+                    <input type="date" id="transferDate" required>
+                </div>
+                <div class="form-group">
+                    <label>Reason</label>
+                    <textarea id="transferReason" rows="3"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('transferModal')">Cancel</button>
+                    <button type="submit" class="btn btn-success">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API = 'http://localhost:5000/api';
+        let shows = [];
+        let wrestlers = [];
+        let allMatches = [];
+        let championships = [];
+        let transfers = [];
+
+        // ==================== EXPORT / IMPORT CSV ====================
+        function exportRosterCSV() {
+            const headers = 'id,name,show,division,status';
+            const rows = wrestlers.map(w =>
+                `${w.id},"${w.name}","${w.show}","${w.division}","${w.status}"`
+            );
+            downloadCSV('roster-export.csv', [headers, ...rows].join('\n'));
+        }
+
+        function exportChampionshipsCSV() {
+            const headers = 'id,name,show,holder,debutDate';
+            const rows = championships.map(c =>
+                `${c.id},"${c.name}","${c.show}","${c.holder}","${c.debutDate ? c.debutDate.split('T')[0] : ''}"`
+            );
+            downloadCSV('championships-export.csv', [headers, ...rows].join('\n'));
+        }
+
+        function downloadCSV(filename, content) {
+            const blob = new Blob([content], { type: 'text/csv' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(a.href);
+        }
+
+        async function importRosterCSV() {
+            const file = document.getElementById('importRosterFile').files[0];
+            if (!file) return alert('Select a CSV file first.');
+            const text = await file.text();
+            const lines = text.trim().split('\n').slice(1); // skip header
+            let updated = 0, errors = 0;
+            for (const line of lines) {
+                const [id, name, show, division, status] = parseCSVLine(line);
+                if (!id || !name) { errors++; continue; }
+                const res = await fetch(`${API}/wrestlers/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, show, division, status, imageUrl: '' })
+                });
+                res.ok ? updated++ : errors++;
+            }
+            await loadRoster();
+            document.getElementById('importRosterResult').innerHTML =
+                `<p style="color:var(--success);">\u2705 Updated <strong>${updated}</strong> wrestlers. Errors: ${errors}</p>`;
+        }
+
+        async function importChampCSV() {
+            const file = document.getElementById('importChampFile').files[0];
+            if (!file) return alert('Select a CSV file first.');
+            const text = await file.text();
+            const lines = text.trim().split('\n').slice(1);
+            let updated = 0, errors = 0;
+            for (const line of lines) {
+                const [id, name, show, holder, debutDate] = parseCSVLine(line);
+                if (!id || !name) { errors++; continue; }
+                const res = await fetch(`${API}/championships/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, show, holder, debutDate, notes: '' })
+                });
+                res.ok ? updated++ : errors++;
+            }
+            await loadChampionships();
+            document.getElementById('importChampResult').innerHTML =
+                `<p style="color:var(--success);">\u2705 Updated <strong>${updated}</strong> championships. Errors: ${errors}</p>`;
+        }
+
+        function parseCSVLine(line) {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            for (const ch of line) {
+                if (ch === '"') { inQuotes = !inQuotes; }
+                else if (ch === ',' && !inQuotes) { result.push(current.trim()); current = ''; }
+                else { current += ch; }
+            }
+            result.push(current.trim());
+            return result;
+        }
+
+        // ==================== SEASON SETUP ====================
+        const SHOW_DAYS = { RAW: 1, TNA: 2, AAA: 3, AEW: 4, NXT: 4, SmackDown: 5 };
+
+        function applySeasonStart() {
+            const val = document.getElementById('seasonStartDate').value;
+            if (!val) return alert('Please select a date.');
+            const base = new Date(val);
+            // Get the Monday of that week
+            const monday = new Date(base);
+            monday.setDate(base.getDate() - ((base.getDay() + 6) % 7));
+
+            const preview = [];
+            shows.filter(s => s.day).forEach(s => {
+                const offset = SHOW_DAYS[s.name] ?? DAY_INDEX[s.day];
+                if (offset === undefined) return;
+                const d = new Date(monday);
+                d.setDate(monday.getDate() + (offset === 0 ? 7 : offset) - 1);
+                preview.push(`<tr><td>${s.name}</td><td>${s.day}</td><td><strong>${d.toDateString()}</strong></td></tr>`);
+            });
+
+            document.getElementById('seasonDatesPreview').innerHTML = preview.length
+                ? `<table><thead><tr><th>Show</th><th>Day</th><th>First Episode</th></tr></thead><tbody>${preview.join('')}</tbody></table>`
+                : '<p style="color:#999;">No scheduled shows found. Add shows with broadcast days in the Shows tab.</p>';
+        }
+
+        const DEFAULT_WRESTLERS = [
+            {name:'Abyss',show:'TNA',division:'Unassigned',status:'Active'},
+            {name:'Adam Cole',show:'AEW',division:'Unassigned',status:'Active'},
+            {name:'Adam Page',show:'AEW',division:'Unassigned',status:'Active'},
+            {name:'AJ Styles',show:'TNA',division:'Unassigned',status:'Active'},
+            {name:'Asuka',show:'RAW',division:"Women's",status:'Active'},
+            {name:'Austin Theory',show:'RAW',division:'Heavyweight',status:'Active'},
+            {name:'Axiom',show:'SmackDown',division:'Cruiserweight',status:'Active'},
+            {name:'Bayley',show:'RAW',division:"Women's",status:'Active'},
+            {name:'Becky Lynch',show:'RAW',division:"Women's",status:'Active'},
+            {name:'Bianca Belair',show:'SmackDown',division:"Women's",status:'Active'},
+            {name:'Bron Breakker',show:'RAW',division:'Heavyweight',status:'Active'},
+            {name:'Bronson Reed',show:'RAW',division:'Heavyweight',status:'Active'},
+            {name:'Bryan Danielson',show:'AEW',division:'Heavyweight',status:'Active'},
+            {name:'Candice LeRae',show:'SmackDown',division:"Women's",status:'Active'},
+            {name:'Carmelo Hayes',show:'SmackDown',division:'Heavyweight',status:'Active'},
+            {name:'Cash Wheeler',show:'AEW',division:'Tag Team',status:'Active'},
+            {name:'Charlotte Flair',show:'SmackDown',division:"Women's",status:'Active'},
+            {name:'Chelsea Green',show:'SmackDown',division:"Women's",status:'Active'},
+            {name:'Chris Jericho',show:'AEW',division:'Heavyweight',status:'Active'},
+            {name:'Christian Cage',show:'AEW',division:'Heavyweight',status:'Active'},
+            {name:'Claudio Castagnoli',show:'AEW',division:'Heavyweight',status:'Active'},
+            {name:'CM Punk',show:'RAW',division:'Heavyweight',status:'Active'},
+            {name:'Cody Rhodes',show:'SmackDown',division:'Heavyweight',status:'Active'},
+            {name:'Damian Priest',show:'SmackDown',division:'Heavyweight',status:'Active'},
+            {name:'Darby Allin',show:'AEW',division:'Heavyweight',status:'Active'},
+            {name:'Dax Harwood',show:'AEW',division:'Tag Team',status:'Active'},
+            {name:'Dexter Lumis',show:'SmackDown',division:'Heavyweight',status:'Active'},
+            {name:'Dirty Dominik Mysterio',show:'RAW',division:'Heavyweight',status:'Active'},
+            {name:'Drew McIntyre',show:'SmackDown',division:'Heavyweight',status:'Active'},
+            {name:'Erik',show:'RAW',division:'Tag Team',status:'Active'},
+            {name:'Ethan Page',show:'RAW',division:'Heavyweight',status:'Active'},
+            {name:'Finn Bálor',show:'RAW',division:'Heavyweight',status:'Active'},
+            {name:'Giulia',show:'SmackDown',division:"Women's",status:'Active'},
+            {name:'Gunther',show:'SmackDown',division:'Heavyweight',status:'Active'},
+            {name:'Hank Walker',show:'NXT',division:'Tag Team',status:'Active'},
+            {name:'Ivar',show:'RAW',division:'Tag Team',status:'Active'},
+            {name:'Ivy Nile',show:'RAW',division:"Women's",status:'Active'},
+            {name:'Iyo Sky',show:'RAW',division:"Women's",status:'Active'},
+            {name:'Izzi Dame',show:'NXT',division:"Women's",status:'Active'},
+            {name:'Jacob Fatu',show:'RAW',division:'Heavyweight',status:'Active'},
+            {name:'Jade Cargill',show:'SmackDown',division:"Women's",status:'Active'},
+            {name:'Jamie Hayter',show:'AEW',division:"Women's",status:'Active'},
+            {name:'Jay White',show:'AEW',division:'Heavyweight',status:'Active'},
+            {name:'JD McDonagh',show:'RAW',division:'Heavyweight',status:'Active'},
+            {name:'Jey Uso',show:'RAW',division:'Heavyweight',status:'Active'},
+            {name:'Jimmy Uso',show:'RAW',division:'Heavyweight',status:'Active'},
+            {name:'Joe Hendry',show:'TNA',division:'Heavyweight',status:'Active'},
+            {name:'Johnny Gargano',show:'SmackDown',division:'Heavyweight',status:'Active'},
+            {name:'Jon Moxley',show:'AEW',division:'Heavyweight',status:'Active'},
+            {name:'Jordynne Grace',show:'NXT',division:"Women's",status:'Active'},
+            {name:'Julius Creed',show:'RAW',division:'Heavyweight',status:'Active'},
+            {name:'Kairi Sane',show:'RAW',division:"Women's",status:'Active'},
+            {name:'Kenny Omega',show:'AEW',division:'Heavyweight',status:'Active'},
+            {name:'Kevin Owens',show:'SmackDown',division:'Heavyweight',status:'Active'},
+            {name:'Kofi Kingston',show:'RAW',division:'Heavyweight',status:'Active'},
+            {name:'Konosuke Takeshita',show:'AEW',division:'Heavyweight',status:'Active'},
+            {name:'Kurt Angle',show:'TNA',division:'Heavyweight',status:'Active'},
+            {name:'LA Knight',show:'RAW',division:'Heavyweight',status:'Active'},
+            {name:'Lexis King',show:'NXT',division:'Heavyweight',status:'Active'},
+            {name:'Liv Morgan',show:'RAW',division:"Women's",status:'Active'},
+            {name:'Logan Paul',show:'RAW',division:'Heavyweight',status:'Active'},
+            {name:'Lyra Valkyria',show:'RAW',division:"Women's",status:'Active'},
+            {name:'Mercedes Mone',show:'AEW',division:"Women's",status:'Active'},
+            {name:'MJF',show:'AEW',division:'Heavyweight',status:'Active'},
+            {name:'Naomi',show:'RAW',division:"Women's",status:'Active'},
+            {name:'Nathan Frazer',show:'SmackDown',division:'Cruiserweight',status:'Active'},
+            {name:'Nia Jax',show:'SmackDown',division:"Women's",status:'Active'},
+            {name:'Nic Nemeth',show:'TNA',division:'Heavyweight',status:'Active'},
+            {name:'Nick Jackson',show:'AEW',division:'Tag Team',status:'Active'},
+            {name:'Nikki Cross',show:'SmackDown',division:"Women's",status:'Active'},
+            {name:'Oba Femi',show:'RAW',division:'Heavyweight',status:'Active'},
+            {name:'Okada',show:'AEW',division:'Heavyweight',status:'Active'},
+            {name:'Orange Casidy',show:'AEW',division:'Heavyweight',status:'Active'},
+            {name:'Pac',show:'AEW',division:'Heavyweight',status:'Active'},
+            {name:'Penta',show:'RAW',division:'Heavyweight',status:'Active'},
+            {name:'R-Truth',show:'SmackDown',division:'Heavyweight',status:'Active'},
+            {name:'Randy Orton',show:'SmackDown',division:'Heavyweight',status:'Active'},
+            {name:'Raquel Rodriguez',show:'RAW',division:"Women's",status:'Active'},
+            {name:'Rey Mysterio',show:'RAW',division:'Cruiserweight',status:'Active'},
+            {name:'Rhea Ripley',show:'SmackDown',division:"Women's",status:'Active'},
+            {name:'Roman Reigns',show:'RAW',division:'Heavyweight',status:'Active'},
+            {name:'Roxanne Perez',show:'RAW',division:"Women's",status:'Active'},
+            {name:'Sami Zayn',show:'SmackDown',division:'Heavyweight',status:'Active'},
+            {name:'Santos Escobar',show:'SmackDown',division:'Heavyweight',status:'Active'},
+            {name:'Seth Rollins',show:'RAW',division:'Heavyweight',status:'Active'},
+            {name:'Shawn Spears',show:'NXT',division:'Heavyweight',status:'Active'},
+            {name:'Sheamus',show:'RAW',division:'Heavyweight',status:'Active'},
+            {name:'Shinsuke Nakamura',show:'SmackDown',division:'Heavyweight',status:'Active'},
+            {name:'Solo Sikoa',show:'SmackDown',division:'Heavyweight',status:'Active'},
+            {name:'Stephanie Vaquer',show:'RAW',division:"Women's",status:'Active'},
+            {name:'Swerve',show:'AEW',division:'Heavyweight',status:'Active'},
+            {name:'Tank Ledger',show:'NXT',division:'Tag Team',status:'Active'},
+            {name:'Tiffany Stratton',show:'SmackDown',division:"Women's",status:'Active'},
+            {name:'Toni Storm',show:'AEW',division:"Women's",status:'Active'},
+            {name:'Trick Williams',show:'SmackDown',division:'Heavyweight',status:'Active'},
+            {name:'Uncle Howdy',show:'SmackDown',division:'Heavyweight',status:'Active'},
+            {name:'Will Ospreay',show:'AEW',division:'Heavyweight',status:'Active'},
+            {name:'Xavier Woods',show:'RAW',division:'Heavyweight',status:'Active'},
+            {name:'AJ Styles',show:'TNA',division:'Heavyweight',status:'Active'},
+            {name:'Jeff Hardy',show:'TNA',division:'Heavyweight',status:'Active'},
+            {name:'Rob Van Dam',show:'TNA',division:'Heavyweight',status:'Active'},
+        ];
+
+        const DEFAULT_CHAMPIONSHIPS = [
+            {name:'World Heavyweight Championship',show:'RAW',holder:'CM Punk'},
+            {name:'WWE Women\'s World Championship',show:'RAW',holder:'Stephanie Vaquer'},
+            {name:'WWE Intercontinental Championship',show:'RAW',holder:'Penta'},
+            {name:'World Tag Team Championship',show:'RAW',holder:'Uso\'s'},
+            {name:'WWE Women\'s Tag Team Championship',show:'RAW',holder:'Rhiyo'},
+            {name:'WWE Women\'s Intercontinental Championship',show:'RAW',holder:'Becky Lynch'},
+            {name:'Men\'s Money in the Bank',show:'RAW',holder:'Vacant'},
+            {name:'Women\'s Money in the Bank',show:'RAW',holder:'Vacant'},
+            {name:'Undisputed WWE Championship',show:'SmackDown',holder:'Drew McIntyre'},
+            {name:'WWE Women\'s Championship',show:'SmackDown',holder:'Jade Cargill'},
+            {name:'WWE United States Championship',show:'SmackDown',holder:'Carmelo Hayes'},
+            {name:'WWE Tag Team Championship',show:'SmackDown',holder:'Rhiyo'},
+            {name:'WWE Women\'s United States Championship',show:'SmackDown',holder:'Giulia'},
+            {name:'NXT Championship',show:'NXT',holder:'Vacant'},
+            {name:'NXT North American Championship',show:'NXT',holder:'Ethan Page'},
+            {name:'NXT Tag Team Championship',show:'NXT',holder:'Hank & Tank'},
+            {name:'NXT Women\'s Championship',show:'NXT',holder:'Jacy Jayne'},
+            {name:'NXT Women\'s North American Championship',show:'NXT',holder:'Izzi Dame'},
+            {name:'AEW World Championship',show:'AEW',holder:'Vacant'},
+            {name:'AEW World Tag Team Championship',show:'AEW',holder:'Vacant'},
+            {name:'AEW Continental Championship',show:'AEW',holder:'Chris Jericho'},
+            {name:"AEW Women's World Championship",show:'AEW',holder:'Vacant'},
+            {name:"AEW TBS Women's Championship",show:'AEW',holder:'Vacant'},
+            {name:'AAA Mega Championship',show:'AAA',holder:'Dirty Dominik Mysterio'},
+            {name:'AAA Latin American Championship',show:'AAA',holder:'Vacant'},
+            {name:'AAA Tag Team Championship',show:'AAA',holder:'Vacant'},
+            {name:"AAA Reina De Reinas Championship",show:'AAA',holder:'Flammer'},
+        ];
+
+        async function importDefaultRoster() {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = 'Importing...';
+            const existing = new Set(wrestlers.map(w => `${w.name}|${w.show}`));
+            let added = 0, skipped = 0;
+            for (const w of DEFAULT_WRESTLERS) {
+                if (existing.has(`${w.name}|${w.show}`)) { skipped++; continue; }
+                await fetch(`${API}/wrestlers`, {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify(w)
+                });
+                added++;
+            }
+            await loadRoster();
+            btn.disabled = false;
+            btn.textContent = 'Import Default Roster';
+            document.getElementById('rosterImportResult').innerHTML =
+                `<p style="color:var(--success);">✅ Added <strong>${added}</strong> superstars. Skipped <strong>${skipped}</strong> already existing.</p>`;
+        }
+
+        async function clearAndImportRoster() {
+            if (!confirm('This will DELETE all current wrestlers and import the default roster. Are you sure?')) return;
+            for (const w of [...wrestlers]) {
+                await fetch(`${API}/wrestlers/${w.id}`, { method: 'DELETE' });
+            }
+            wrestlers = [];
+            for (const w of DEFAULT_WRESTLERS) {
+                await fetch(`${API}/wrestlers`, {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify(w)
+                });
+            }
+            await loadRoster();
+            document.getElementById('rosterImportResult').innerHTML =
+                `<p style="color:var(--success);">✅ Roster reset. Imported <strong>${DEFAULT_WRESTLERS.length}</strong> superstars.</p>`;
+        }
+
+        async function importDefaultChampionships() {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = 'Importing...';
+            const existing = new Set(championships.map(c => `${c.name}|${c.show}`));
+            const today = new Date().toISOString().split('T')[0];
+            let added = 0, skipped = 0;
+            for (const c of DEFAULT_CHAMPIONSHIPS) {
+                if (existing.has(`${c.name}|${c.show}`)) { skipped++; continue; }
+                await fetch(`${API}/championships`, {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ ...c, debutDate: today, notes: '' })
+                });
+                added++;
+            }
+            await loadChampionships();
+            btn.disabled = false;
+            btn.textContent = 'Import Default Championships';
+            document.getElementById('champImportResult').innerHTML =
+                `<p style="color:var(--success);">✅ Added <strong>${added}</strong> championships. Skipped <strong>${skipped}</strong> already existing.</p>`;
+        }
+
+        async function clearAndImportChampionships() {
+            if (!confirm('This will DELETE all current championships and import the defaults. Are you sure?')) return;
+            for (const c of [...championships]) {
+                await fetch(`${API}/championships/${c.id}`, { method: 'DELETE' });
+            }
+            championships = [];
+            const today = new Date().toISOString().split('T')[0];
+            for (const c of DEFAULT_CHAMPIONSHIPS) {
+                await fetch(`${API}/championships`, {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ ...c, debutDate: today, notes: '' })
+                });
+            }
+            await loadChampionships();
+            document.getElementById('champImportResult').innerHTML =
+                `<p style="color:var(--success);">✅ Championships reset. Imported <strong>${DEFAULT_CHAMPIONSHIPS.length}</strong> titles.</p>`;
+        }
+
+        // ==================== SORTING ====================
+        const sortState = {};
+
+        function setupSortableHeaders() {
+            document.querySelectorAll('th[data-col]').forEach(th => {
+                th.addEventListener('click', () => {
+                    const table = th.dataset.table;
+                    const col = th.dataset.col;
+                    const current = sortState[table] || { col: null, dir: 'asc' };
+                    const dir = current.col === col && current.dir === 'asc' ? 'desc' : 'asc';
+                    sortState[table] = { col, dir };
+
+                    // Update header indicators
+                    document.querySelectorAll(`th[data-table="${table}"]`).forEach(h => {
+                        h.classList.remove('sort-asc', 'sort-desc');
+                    });
+                    th.classList.add(dir === 'asc' ? 'sort-asc' : 'sort-desc');
+
+                    if (table === 'roster') displayRoster(sortData([...wrestlers], col, dir));
+                    if (table === 'matches') displayMatches(sortData([...allMatches], col, dir));
+                    if (table === 'champ') displayChampionships(sortData([...championships], col, dir));
+                    if (table === 'transfers') displayTransfers(sortData([...transfers], col, dir));
+                });
+            });
+        }
+
+        function sortData(data, col, dir) {
+            return data.sort((a, b) => {
+                let av = a[col] ?? '';
+                let bv = b[col] ?? '';
+                // Numeric / date compare
+                if (!isNaN(Date.parse(av)) && !isNaN(Date.parse(bv))) {
+                    av = new Date(av); bv = new Date(bv);
+                } else {
+                    av = String(av).toLowerCase(); bv = String(bv).toLowerCase();
+                }
+                if (av < bv) return dir === 'asc' ? -1 : 1;
+                if (av > bv) return dir === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            setupNavigation();
+            setupSortableHeaders();
+            loadShows();
+            loadDashboard();
+            loadRoster();
+            loadMatches();
+            loadChampionships();
+            loadTransfers();
+        });
+
+        function setupNavigation() {
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const tabName = e.target.dataset.tab;
+                    showTab(tabName);
+                });
+            });
+        }
+
+        function showTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        async function loadShows() {
+            try {
+                const res = await fetch(`${API}/shows`);
+                shows = await res.json();
+                populateShowSelects();
+                displayShows();
+            } catch (err) {
+                console.error('Error loading shows:', err);
+            }
+        }
+
+        function populateShowSelects() {
+            // Only shows WITH a broadcast day appear in match/roster/transfer selects
+            const activeShows = shows.filter(s => s.day);
+            const selects = ['wrestlerShow', 'matchShow', 'champShow', 'transferFrom', 'transferTo', 'rosterShowFilter', 'matchShowFilter', 'champShowFilter'];
+            selects.forEach(id => {
+                const select = document.getElementById(id);
+                if (!select) return;
+                const currentValue = select.value;
+                select.innerHTML = '<option value="">All Shows</option>';
+                activeShows.forEach(show => {
+                    const option = document.createElement('option');
+                    option.value = show.name;
+                    option.textContent = `${show.name} (${show.day})`;
+                    select.appendChild(option);
+                });
+                select.value = currentValue;
+            });
+        }
+
+        function displayShows() {
+            const html = shows.length > 0
+                ? shows.map(s => `<tr>
+                    <td><strong>${s.name}</strong></td>
+                    <td>${s.abbreviation}</td>
+                    <td>${s.day ? `<span class="badge badge-success">${s.day}</span>` : '<span class="badge badge-warning">Not scheduled</span>'}</td>
+                    <td>${s.day ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-warning">Inactive</span>'}</td>
+                    <td><div class="action-buttons">
+                        <button class="btn btn-secondary" onclick="editShow('${s.id}')">Edit</button>
+                        <button class="btn btn-danger" onclick="deleteShow('${s.id}')">Delete</button>
+                    </div></td>
+                </tr>`).join('')
+                : '<tr><td colspan="5" class="no-data">No shows found</td></tr>';
+            document.getElementById('showsTable').innerHTML = html;
+        }
+
+        let editingShowId = null;
+
+        function openAddShowModal() {
+            editingShowId = null;
+            document.getElementById('showModalTitle').textContent = 'Add Show';
+            document.getElementById('showEditId').value = '';
+            document.getElementById('showName').value = '';
+            document.getElementById('showAbbr').value = '';
+            document.getElementById('showDay').value = '';
+            openModal('showModal');
+        }
+
+        function editShow(id) {
+            const show = shows.find(s => s.id === id);
+            if (!show) return;
+            editingShowId = id;
+            document.getElementById('showModalTitle').textContent = 'Edit Show';
+            document.getElementById('showEditId').value = id;
+            document.getElementById('showName').value = show.name;
+            document.getElementById('showAbbr').value = show.abbreviation;
+            document.getElementById('showDay').value = show.day || '';
+            openModal('showModal');
+        }
+
+        async function saveShow(e) {
+            e.preventDefault();
+            const id = document.getElementById('showEditId').value;
+            const name = document.getElementById('showName').value.trim();
+            const abbreviation = document.getElementById('showAbbr').value.trim().toUpperCase();
+            const day = document.getElementById('showDay').value;
+            const method = id ? 'PUT' : 'POST';
+            const url = id ? `${API}/shows/${id}` : `${API}/shows`;
+            try {
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, abbreviation, day: day || null })
+                });
+                if (res.ok) {
+                    closeModal('showModal');
+                    await loadShows();
+                } else {
+                    const err = await res.json();
+                    alert(err.error || 'Error saving show');
+                }
+            } catch (err) {
+                console.error('Error:', err);
+            }
+        }
+
+        async function deleteShow(id) {
+            if (!confirm('Delete this show? Wrestlers assigned to it will remain but the show will be removed from all selects.')) return;
+            try {
+                const res = await fetch(`${API}/shows/${id}`, { method: 'DELETE' });
+                if (res.ok) await loadShows();
+                else alert('Error deleting show');
+            } catch (err) {
+                console.error('Error:', err);
+            }
+        }
+
+        async function loadDashboard() {
+            try {
+                const res = await fetch(`${API}/dashboard/stats`);
+                const stats = await res.json();
+                
+                document.getElementById('totalWrestlers').textContent = stats.totalWrestlers;
+                document.getElementById('totalChampionships').textContent = stats.championships.length;
+                document.getElementById('activeMatches').textContent = stats.upcomingMatches.length;
+                document.getElementById('totalShows').textContent = shows.filter(s => s.day).length;
+
+                // Upcoming matches
+                const upcomingHtml = stats.upcomingMatches.length > 0 
+                    ? stats.upcomingMatches.map(m => `
+                        <tr>
+                            <td>${new Date(m.date).toLocaleDateString()}</td>
+                            <td>${m.show}</td>
+                            <td>${m.type}</td>
+                            <td>${m.participant1}${m.participant2 ? ' vs ' + m.participant2 : ''}</td>
+                        </tr>
+                    `).join('')
+                    : '<tr><td colspan="4" class="no-data">No upcoming matches</td></tr>';
+                document.getElementById('upcomingMatches').innerHTML = upcomingHtml;
+
+                // Show breakdown
+                const breakdownHtml = stats.showBreakdown.map(s => `
+                    <tr>
+                        <td>${s.show}</td>
+                        <td><strong>${s.count}</strong></td>
+                    </tr>
+                `).join('');
+                document.getElementById('showBreakdown').innerHTML = breakdownHtml;
+            } catch (err) {
+                console.error('Error loading dashboard:', err);
+            }
+        }
+
+        async function loadRoster() {
+            try {
+                const res = await fetch(`${API}/wrestlers`);
+                wrestlers = await res.json();
+                displayRoster(wrestlers);
+                populateChampionshipHolders();
+                populateTransferWrestlers('');
+            } catch (err) {
+                console.error('Error loading roster:', err);
+            }
+        }
+
+        function displayRoster(data) {
+            const html = data.length > 0 
+                ? data.map(w => `
+                    <tr>
+                        <td><strong>${w.name}</strong></td>
+                        <td>${w.show}</td>
+                        <td><span class="badge badge-info">${w.division}</span></td>
+                        <td><span class="badge ${w.status === 'Active' ? 'badge-success' : 'badge-warning'}">${w.status}</span></td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="btn btn-secondary" onclick="editWrestler(${w.id})">Edit</button>
+                                <button class="btn btn-danger" onclick="deleteWrestler(${w.id})">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('')
+                : '<tr><td colspan="5" class="no-data">No wrestlers added yet</td></tr>';
+            document.getElementById('rosterTable').innerHTML = html;
+        }
+
+        function filterRoster() {
+            const show = document.getElementById('rosterShowFilter').value;
+            const search = document.getElementById('rosterSearch').value.toLowerCase();
+            
+            const filtered = wrestlers.filter(w => 
+                (!show || w.show === show) &&
+                (w.name.toLowerCase().includes(search) || w.division.toLowerCase().includes(search))
+            );
+            
+            displayRoster(filtered);
+        }
+
+        async function loadMatches() {
+            try {
+                const res = await fetch(`${API}/matches`);
+                allMatches = await res.json();
+                displayMatches(allMatches);
+            } catch (err) {
+                console.error('Error loading matches:', err);
+            }
+        }
+
+        function displayMatches(data) {
+            const html = data.length > 0
+                ? data.map(m => `
+                    <tr>
+                        <td>${new Date(m.date).toLocaleDateString()}</td>
+                        <td>${m.show}</td>
+                        <td>${m.type}</td>
+                        <td>${m.participant1}${m.participant2 ? ' vs ' + m.participant2 : ''}${m.participant3 ? ' vs ' + m.participant3 : ''}</td>
+                        <td><span class="badge ${m.result === 'Pending' ? 'badge-warning' : 'badge-success'}">${m.result}</span></td>
+                        <td>${m.winner || '-'}</td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="btn btn-secondary" onclick="editMatch(${m.id})">Edit</button>
+                                <button class="btn btn-danger" onclick="deleteMatch(${m.id})">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('')
+                : '<tr><td colspan="7" class="no-data">No matches scheduled</td></tr>';
+            document.getElementById('matchesTable').innerHTML = html;
+        }
+
+        function filterMatches() {
+            const show = document.getElementById('matchShowFilter').value;
+            const status = document.getElementById('matchStatusFilter').value;
+            
+            const filtered = allMatches.filter(m =>
+                (!show || m.show === show) &&
+                (!status || m.result === status)
+            );
+            
+            displayMatches(filtered);
+        }
+
+        async function loadChampionships() {
+            try {
+                const res = await fetch(`${API}/championships`);
+                championships = await res.json();
+                displayChampionships(championships);
+                populateChampionshipHolders();
+            } catch (err) {
+                console.error('Error loading championships:', err);
+            }
+        }
+
+        function displayChampionships(data) {
+            const html = data.length > 0
+                ? data.map(c => `
+                    <tr>
+                        <td><strong>${c.name}</strong></td>
+                        <td>${c.show}</td>
+                        <td>${c.holder}</td>
+                        <td>${new Date(c.debutDate).toLocaleDateString()}</td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="btn btn-secondary" onclick="editChampionship(${c.id})">Edit</button>
+                                <button class="btn btn-danger" onclick="deleteChampionship(${c.id})">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('')
+                : '<tr><td colspan="5" class="no-data">No championships created</td></tr>';
+            document.getElementById('championshipsTable').innerHTML = html;
+        }
+
+        function filterChampionships() {
+            const show = document.getElementById('champShowFilter').value;
+            const filtered = championships.filter(c => !show || c.show === show);
+            displayChampionships(filtered);
+        }
+
+        async function loadTransfers() {
+            try {
+                const res = await fetch(`${API}/transfers`);
+                transfers = await res.json();
+                displayTransfers(transfers);
+            } catch (err) {
+                console.error('Error loading transfers:', err);
+            }
+        }
+
+        function displayTransfers(data) {
+            const html = data.length > 0
+                ? data.map(t => {
+                    const wrestler = wrestlers.find(w => w.id === t.wrestlerId);
+                    return `<tr>
+                        <td><strong>${wrestler ? wrestler.name : t.wrestlerId}</strong></td>
+                        <td>${t.fromShow}</td>
+                        <td>${t.toShow}</td>
+                        <td>${new Date(t.date).toLocaleDateString()}</td>
+                        <td>${t.reason || '-'}</td>
+                        <td><button class="btn btn-danger" onclick="deleteTransfer(${t.id}, ${t.wrestlerId}, '${t.fromShow}')">Revert</button></td>
+                    </tr>`;
+                }).join('')
+                : '<tr><td colspan="6" class="no-data">No transfers recorded</td></tr>';
+            document.getElementById('transfersTable').innerHTML = html;
+        }
+
+        // Modal functions
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        let editingWrestlerId = null;
+
+        function openAddWrestlerModal() {
+            editingWrestlerId = null;
+            document.querySelector('#wrestlerModal .modal-header h2').textContent = 'Add Wrestler';
+            document.getElementById('wrestlerName').value = '';
+            document.getElementById('wrestlerShow').value = '';
+            document.getElementById('wrestlerDivision').value = 'Unassigned';
+            document.getElementById('wrestlerStatus').value = 'Active';
+            document.getElementById('wrestlerImage').value = '';
+            openModal('wrestlerModal');
+        }
+
+        function editWrestler(id) {
+            const w = wrestlers.find(x => x.id === id);
+            if (!w) return;
+            editingWrestlerId = id;
+            document.querySelector('#wrestlerModal .modal-header h2').textContent = 'Edit Wrestler';
+            document.getElementById('wrestlerName').value = w.name;
+            document.getElementById('wrestlerShow').value = w.show;
+            document.getElementById('wrestlerDivision').value = w.division;
+            document.getElementById('wrestlerStatus').value = w.status;
+            document.getElementById('wrestlerImage').value = w.imageUrl || '';
+            openModal('wrestlerModal');
+        }
+
+        async function saveWrestler(e) {
+            e.preventDefault();
+            const name = document.getElementById('wrestlerName').value;
+            const show = document.getElementById('wrestlerShow').value;
+            const division = document.getElementById('wrestlerDivision').value;
+            const status = document.getElementById('wrestlerStatus').value;
+            const imageUrl = document.getElementById('wrestlerImage').value;
+
+            const isEdit = !!editingWrestlerId;
+            const url = isEdit ? `${API}/wrestlers/${editingWrestlerId}` : `${API}/wrestlers`;
+            const method = isEdit ? 'PUT' : 'POST';
+
+            try {
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, show, division, status, imageUrl })
+                });
+                if (res.ok) {
+                    closeModal('wrestlerModal');
+                    loadRoster();
+                    alert(isEdit ? 'Wrestler updated successfully!' : 'Wrestler added successfully!');
+                } else {
+                    alert('Error saving wrestler');
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                alert('Error saving wrestler');
+            }
+        }
+
+        async function deleteWrestler(id) {
+            if (confirm('Are you sure you want to delete this wrestler?')) {
+                try {
+                    await fetch(`${API}/wrestlers/${id}`, { method: 'DELETE' });
+                    loadRoster();
+                } catch (err) {
+                    console.error('Error:', err);
+                }
+            }
+        }
+
+        // Match types that allow cross-show participants
+        const CROSS_SHOW_TYPES = new Set(['Battle Royal', 'Ambulance Match', 'Casket Match', 'Dumpster Match', 'I Quit Match', 'Inferno Match', '3 Stages of Hell']);
+
+        // How many participant slots each match type needs
+        const MATCH_SLOTS = {
+            'One vs One': 2, 'One on One': 2,
+            'Triple Threat': 3,
+            'Fatal 4-Way': 4, '5-Way': 5, '6-Way': 6, '8-Way': 8,
+            'Two on Two': 4, 'Two on Two Mixed Tag': 4, 'Two on Two Tornado Tag': 4,
+            'Three on Three': 6, 'Three on Three Tornado Tag': 6,
+            'Four on Four': 8,
+            'Triple Threat Tornado Tag': 6,
+            '4-Way Tornado Tag': 8,
+            'One on Two': 3, 'One on Two Tornado Tag': 3, 'Handicap One on Two': 3,
+            'One on Three': 4,
+            'Two on Three': 5,
+            'Ambulance Match': 2, 'Casket Match': 2, 'Dumpster Match': 2,
+            'I Quit Match': 2, 'Inferno Match': 2, '3 Stages of Hell': 2,
+            'Battle Royal': 4
+        };
+
+        function buildParticipantSlots(count, show) {
+            const isCrossShow = CROSS_SHOW_TYPES.has(document.getElementById('matchType').value);
+            const pool = (show && !isCrossShow)
+                ? wrestlers.filter(w => w.show === show)
+                : wrestlers;
+
+            document.getElementById('crossShowNote').style.display = isCrossShow ? 'block' : 'none';
+
+            const grid = document.getElementById('participantsGrid');
+            grid.innerHTML = '';
+
+            // Render in rows of 2
+            for (let i = 0; i < count; i += 2) {
+                const row = document.createElement('div');
+                row.className = 'form-row';
+                for (let j = i; j < Math.min(i + 2, count); j++) {
+                    const num = j + 1;
+                    const required = num === 1 ? 'required' : '';
+                    const label = num === 1 ? 'Participant 1 *' : `Participant ${num}`;
+                    row.innerHTML += `
+                        <div class="form-group">
+                            <label>${label}</label>
+                            <select id="matchP${num}" ${required}>
+                                <option value="">Select Superstar</option>
+                                ${pool.map(w => `<option value="${w.name}">${w.name} (${w.show})</option>`).join('')}
+                            </select>
+                        </div>`;
+                }
+                // Odd count last row: fill with empty div for layout
+                if (count % 2 !== 0 && i + 2 > count) {
+                    row.innerHTML += '<div class="form-group"></div>';
+                }
+                grid.appendChild(row);
+            }
+        }
+
+        const DAY_INDEX = { Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6, Sunday: 0 };
+
+        function nextDateForDay(dayName) {
+            const target = DAY_INDEX[dayName];
+            if (target === undefined) return '';
+            const now = new Date();
+            const diff = (target - now.getDay() + 7) % 7 || 7;
+            const next = new Date(now);
+            next.setDate(now.getDate() + diff);
+            next.setHours(20, 0, 0, 0); // default 8pm
+            return next.toISOString().slice(0, 16);
+        }
+
+        function onMatchTypeOrShowChange() {
+            const type = document.getElementById('matchType').value;
+            const show = document.getElementById('matchShow').value;
+            const count = MATCH_SLOTS[type] || 2;
+            buildParticipantSlots(count, show);
+            // Auto-set date to next occurrence of the show's broadcast day
+            if (show) {
+                const showData = shows.find(s => s.name === show);
+                if (showData && showData.day) {
+                    const next = nextDateForDay(showData.day);
+                    if (next) document.getElementById('matchDate').value = next;
+                }
+            }
+        }
+
+        function populateTransferWrestlers(fromShow) {
+            const transferSelect = document.getElementById('transferWrestler');
+            const current = transferSelect.value;
+            transferSelect.innerHTML = '<option value="">Select Superstar</option>';
+            const pool = fromShow ? wrestlers.filter(w => w.show === fromShow) : [];
+            pool.forEach(w => {
+                const opt = document.createElement('option');
+                opt.value = w.id;
+                opt.textContent = w.name;
+                transferSelect.appendChild(opt);
+            });
+            transferSelect.value = current;
+        }
+
+        function onTransferFromChange() {
+            const fromShow = document.getElementById('transferFrom').value;
+            populateTransferWrestlers(fromShow);
+            document.getElementById('transferWrestler').value = '';
+        }
+
+        function openAddMatchModal() {
+            document.getElementById('matchShow').value = '';
+            document.getElementById('matchType').value = 'One vs One';
+            document.getElementById('matchDate').value = '';
+            document.getElementById('matchNotes').value = '';
+            buildParticipantSlots(2, '');
+            openModal('matchModal');
+        }
+
+        async function saveMatch(e) {
+            e.preventDefault();
+            const show = document.getElementById('matchShow').value;
+            const type = document.getElementById('matchType').value;
+            const date = document.getElementById('matchDate').value;
+            const notes = document.getElementById('matchNotes').value;
+            const count = MATCH_SLOTS[type] || 2;
+            const participants = [];
+            for (let i = 1; i <= count; i++) {
+                const el = document.getElementById(`matchP${i}`);
+                participants.push(el ? el.value : '');
+            }
+            const [participant1, participant2, participant3, participant4] = participants;
+
+            try {
+                const res = await fetch(`${API}/matches`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ show, type, participant1, participant2, participant3, participant4, date, notes })
+                });
+                
+                if (res.ok) {
+                    closeModal('matchModal');
+                    loadMatches();
+                    alert('Match scheduled successfully!');
+                } else {
+                    alert('Error scheduling match');
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                alert('Error scheduling match');
+            }
+        }
+
+        async function deleteMatch(id) {
+            if (confirm('Are you sure you want to delete this match?')) {
+                try {
+                    await fetch(`${API}/matches/${id}`, { method: 'DELETE' });
+                    loadMatches();
+                } catch (err) {
+                    console.error('Error:', err);
+                }
+            }
+        }
+
+        function openAddChampionshipModal() {
+            document.getElementById('champId').value = '';
+            document.getElementById('champName').value = '';
+            document.getElementById('champShow').value = '';
+            document.getElementById('champDebutDate').value = '';
+            document.getElementById('champNotes').value = '';
+            document.getElementById('champModalTitle').textContent = 'Add Championship';
+            populateChampionshipHolders('');
+            openModal('championshipModal');
+        }
+
+        function populateChampionshipHolders(filterShow) {
+            const select = document.getElementById('champHolder');
+            const currentValue = select.value;
+            select.innerHTML = '<option value="Vacant">Vacant</option>';
+            const pool = filterShow ? wrestlers.filter(w => w.show === filterShow) : wrestlers;
+            pool.forEach(w => {
+                const option = document.createElement('option');
+                option.value = w.name;
+                option.textContent = w.name;
+                select.appendChild(option);
+            });
+            if (currentValue) select.value = currentValue;
+        }
+
+        function onChampShowChange() {
+            const show = document.getElementById('champShow').value;
+            populateChampionshipHolders(show);
+            document.getElementById('champHolder').value = 'Vacant';
+        }
+
+        async function editChampionship(id) {
+            const championship = championships.find(c => c.id === id);
+            if (!championship) return;
+            document.getElementById('champId').value = id;
+            document.getElementById('champName').value = championship.name;
+            document.getElementById('champShow').value = championship.show;
+            document.getElementById('champDebutDate').value = championship.debutDate.split('T')[0];
+            document.getElementById('champNotes').value = championship.notes || '';
+            document.getElementById('champModalTitle').textContent = 'Edit Championship';
+            populateChampionshipHolders(championship.show);
+            document.getElementById('champHolder').value = championship.holder;
+            openModal('championshipModal');
+        }
+
+        async function saveChampionship(e) {
+            e.preventDefault();
+            const id = document.getElementById('champId').value;
+            const name = document.getElementById('champName').value;
+            const show = document.getElementById('champShow').value;
+            const holder = document.getElementById('champHolder').value || 'Vacant';
+            const debutDate = document.getElementById('champDebutDate').value;
+            const notes = document.getElementById('champNotes').value;
+
+            try {
+                const method = id ? 'PUT' : 'POST';
+                const url = id ? `${API}/championships/${id}` : `${API}/championships`;
+                
+                const res = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, show, holder, debutDate, notes })
+                });
+                
+                if (res.ok) {
+                    closeModal('championshipModal');
+                    loadChampionships();
+                    alert(id ? 'Championship updated successfully!' : 'Championship added successfully!');
+                } else {
+                    alert('Error saving championship');
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                alert('Error saving championship');
+            }
+        }
+
+        async function deleteChampionship(id) {
+            if (confirm('Are you sure you want to delete this championship?')) {
+                try {
+                    await fetch(`${API}/championships/${id}`, { method: 'DELETE' });
+                    loadChampionships();
+                } catch (err) {
+                    console.error('Error:', err);
+                }
+            }
+        }
+
+        function openAddTransferModal() {
+            document.getElementById('transferFrom').value = '';
+            document.getElementById('transferWrestler').value = '';
+            document.getElementById('transferTo').value = '';
+            document.getElementById('transferDate').value = '';
+            document.getElementById('transferReason').value = '';
+            populateTransferWrestlers('');
+            openModal('transferModal');
+        }
+
+        async function deleteTransfer(id, wrestlerId, fromShow) {
+            if (!confirm('Revert this transfer? The wrestler will be moved back to their previous show.')) return;
+            try {
+                const res = await fetch(`${API}/transfers/${id}`, { method: 'DELETE' });
+                if (res.ok) {
+                    // Move wrestler back to fromShow
+                    const wrestler = wrestlers.find(w => w.id === wrestlerId);
+                    if (wrestler) {
+                        await fetch(`${API}/wrestlers/${wrestlerId}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ...wrestler, show: fromShow })
+                        });
+                    }
+                    await loadRoster();
+                    await loadTransfers();
+                } else {
+                    alert('Error reverting transfer');
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                alert('Error reverting transfer');
+            }
+        }
+
+        async function saveTransfer(e) {
+            e.preventDefault();
+            const wrestlerId = document.getElementById('transferWrestler').value;
+            const fromShow = document.getElementById('transferFrom').value;
+            const toShow = document.getElementById('transferTo').value;
+            const date = document.getElementById('transferDate').value;
+            const reason = document.getElementById('transferReason').value;
+
+            try {
+                const res = await fetch(`${API}/transfers`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ wrestlerId, fromShow, toShow, date, reason })
+                });
+                if (res.ok) {
+                    closeModal('transferModal');
+                    await loadRoster();
+                    await loadTransfers();
+                    alert('Transfer recorded successfully!');
+                } else {
+                    alert('Error recording transfer');
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                alert('Error recording transfer');
+            }
+        }
+
+        // Click outside modal to close
+        window.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal')) {
+                e.target.classList.remove('active');
+            }
+        });
+    </script>
+</body>
+</html>

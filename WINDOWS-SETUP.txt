@@ -1,0 +1,375 @@
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                                                                               ║
+║             🎭 WWE UNIVERSE MODE MANAGER - WINDOWS SETUP 🎭                  ║
+║                                                                               ║
+║                        QUICK SETUP INSTRUCTIONS                              ║
+║                        FOR WINDOWS USERS                                     ║
+║                                                                               ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+
+⚡ FASTEST METHOD (3 Clicks)
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Double-click: setup-windows.bat
+   → Automatic installer runs
+   → Creates folders, installs dependencies
+   → Wait for "Setup Complete" message
+
+2. Double-click: start-app.bat
+   → Server starts automatically
+   → Browser tab opens (or manual: http://localhost:5000)
+
+3. Start using!
+   → Add wrestlers, schedule matches, create championships
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📋 WHAT YOU'LL SEE
+═══════════════════════════════════════════════════════════════════════════════
+
+When setup-windows.bat runs:
+┌─────────────────────────────────────────────────────────────────────────┐
+│ ========================================                                 │
+│ WWE Universe Mode Manager - Setup                                       │
+│ ========================================                                 │
+│                                                                         │
+│ [OK] Node.js found                                                      │
+│ Creating project structure...                                           │
+│ [OK] Directories created                                               │
+│ [OK] All files present                                                 │
+│ Installing dependencies...                                             │
+│ [OK] Dependencies installed                                            │
+│                                                                         │
+│ ========================================                                 │
+│ Setup Complete!                                                         │
+│ ========================================                                 │
+│                                                                         │
+│ To start the application, run:                                         │
+│   npm start                                                             │
+│                                                                         │
+│ Then open your browser to:                                             │
+│   http://localhost:5000                                                │
+│                                                                         │
+│ Press any key to exit...                                               │
+└─────────────────────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🔧 MANUAL SETUP (If Automated Doesn't Work)
+═══════════════════════════════════════════════════════════════════════════════
+
+Step 1: Open File Explorer
+──────────────────────────
+✓ Create folder: C:\Users\[YourUsername]\wwe-universe-mode
+✓ Inside it, create two folders:
+  - server
+  - public
+
+
+Step 2: Copy Files
+──────────────────
+✓ Copy: package.json             → wwe-universe-mode\
+✓ Copy: server-index.js          → server\      (RENAME TO: index.js)
+✓ Copy: db.js                    → server\      (KEEP NAME)
+✓ Copy: public-index.html        → public\      (RENAME TO: index.html)
+
+
+Step 3: Install Dependencies
+─────────────────────────────
+✓ Open Command Prompt (Windows Key → type "cmd" → Enter)
+✓ Navigate to project: cd wwe-universe-mode
+✓ Type: npm install
+✓ Wait for completion (may take 2-3 minutes)
+
+
+Step 4: Start Application
+──────────────────────────
+✓ In same Command Prompt, type: npm start
+✓ Wait for message: "🎭 WWE Universe Mode Manager running on http://localhost:5000"
+✓ Open browser → http://localhost:5000
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ PREREQUISITES
+═══════════════════════════════════════════════════════════════════════════════
+
+Before starting, verify:
+
+1. Node.js Installed
+   ─────────────────
+   Open Command Prompt and type: node --version
+   
+   You should see: v14.0.0 or higher
+   
+   If not: Download from https://nodejs.org
+
+
+2. All Files Present
+   ──────────────────
+   In F:\Work\Fun-Projects\ you should have:
+   ✓ package.json
+   ✓ server-index.js
+   ✓ db.js
+   ✓ public-index.html
+   ✓ setup-windows.bat
+   ✓ start-app.bat
+   
+   (Plus documentation files)
+
+
+3. Correct Folder Location
+   ──────────────────────────
+   Create: C:\Users\[YourUsername]\wwe-universe-mode\
+   
+   Not: C:\WWE or C:\wwe-manager
+   
+   (Your Windows username can be found in File Explorer)
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📁 FOLDER STRUCTURE (What It Should Look Like)
+═══════════════════════════════════════════════════════════════════════════════
+
+CORRECT ✓
+─────────
+C:\Users\YourName\wwe-universe-mode\
+├── package.json
+├── server\
+│   ├── index.js              (from server-index.js)
+│   └── db.js
+├── public\
+│   └── index.html            (from public-index.html)
+└── node_modules\             (auto-created)
+
+
+INCORRECT ✗ (Common Mistakes)
+──────────────
+C:\WWE\                       → WRONG - Wrong folder location
+C:\wwe\                       → WRONG - Lowercase
+C:\Users\YourName\WWE\        → WRONG - Wrong name
+server\index.js.txt           → WRONG - Text file, not renamed
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🚨 IF setup-windows.bat FAILS
+═══════════════════════════════════════════════════════════════════════════════
+
+Error: "Node.js not installed"
+────────────────────────────
+✓ Download Node.js from: https://nodejs.org
+✓ Run the installer
+✓ Restart computer
+✓ Try setup again
+
+
+Error: "Cannot find files"
+──────────────────────────
+✓ Make sure all 4 files are copied
+✓ Check folder structure matches diagram above
+✓ File names must be exact:
+  - index.js (not Index.js or index.js.txt)
+  - index.html (not Index.html)
+
+
+Error: "npm not found"
+──────────────────────
+✓ Node.js installation failed
+✓ Uninstall Node.js completely
+✓ Download fresh from nodejs.org
+✓ Install and restart computer
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🔄 RENAME FILES (Critical Step!)
+═══════════════════════════════════════════════════════════════════════════════
+
+MUST RENAME These Files:
+
+1. server-index.js  →  index.js
+   ──────────────────────────────
+   ✓ Right-click on server-index.js
+   ✓ Click "Rename"
+   ✓ Delete "server-" part
+   ✓ Save as: index.js
+   ✓ Place in: server\ folder
+
+
+2. public-index.html  →  index.html
+   ────────────────────────────────
+   ✓ Right-click on public-index.html
+   ✓ Click "Rename"
+   ✓ Delete "public-" part
+   ✓ Save as: index.html
+   ✓ Place in: public\ folder
+
+
+DO NOT RENAME:
+   ✓ package.json (keep as-is)
+   ✓ db.js (keep as-is)
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+⏱️ TIMING (What to Expect)
+═══════════════════════════════════════════════════════════════════════════════
+
+Activity                           Time
+─────────────────────────────      ──────
+Running setup-windows.bat          2-3 seconds (checking)
+npm install                        2-5 minutes (downloading)
+npm start                          2-3 seconds (starting)
+Browser opens                      Immediate
+
+TOTAL SETUP TIME:                  ~10 minutes (first time only)
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+💾 WHAT npm install DOES
+═══════════════════════════════════════════════════════════════════════════════
+
+When you run: npm install
+
+It downloads and installs these tools:
+✓ Express.js         - Web server framework
+✓ SQLite3            - Database engine
+✓ CORS               - Request handling
+✓ body-parser        - JSON parsing
+
+Total size: ~150MB
+Location: Creates "node_modules" folder
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🌐 ACCESSING YOUR APP
+═══════════════════════════════════════════════════════════════════════════════
+
+After npm start, you should see:
+┌─────────────────────────────────────────────────────────────────────┐
+│ 🎭 WWE Universe Mode Manager running on http://localhost:5000     │
+│ 📊 Database initialized at ./data/wwe-universe.db                   │
+└─────────────────────────────────────────────────────────────────────┘
+
+Then:
+
+Option 1: Browser automatically opens
+   → You see the professional WWE app interface
+
+Option 2: Manual - Click this link
+   → http://localhost:5000
+
+Option 3: Type in browser address bar
+   → localhost:5000
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🎮 FIRST STEPS IN THE APP
+═══════════════════════════════════════════════════════════════════════════════
+
+After the app loads:
+
+1. Add Your First Wrestler
+   ─────────────────────
+   ✓ Click "Roster" tab
+   ✓ Click "+ Add Wrestler"
+   ✓ Enter name (e.g., "Rey Mysterio")
+   ✓ Select show (e.g., "AEW")
+   ✓ Click Save
+
+2. Schedule Your First Match
+   ──────────────────────────
+   ✓ Click "Matches" tab
+   ✓ Click "+ Schedule Match"
+   ✓ Select show and date
+   ✓ Add participants
+   ✓ Click Save
+
+3. Create Your First Championship
+   ────────────────────────────────
+   ✓ Click "Championships" tab
+   ✓ Click "+ Add Championship"
+   ✓ Enter championship name
+   ✓ Select show
+   ✓ Click Save
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🔐 STOPPING THE SERVER
+═══════════════════════════════════════════════════════════════════════════════
+
+When you want to stop the application:
+
+✓ In Command Prompt window: Press Ctrl + C
+  
+  You'll see:
+  Terminated batch job (Y/N)? y
+
+✓ Type: y and Press Enter
+
+Your data is safely saved in: data/wwe-universe.db
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📚 NEED HELP?
+═══════════════════════════════════════════════════════════════════════════════
+
+Read these files (in order):
+
+1. 00-START-HERE.md
+   → Complete overview
+
+2. COPY-INSTRUCTIONS.txt
+   → Visual file placement guide
+
+3. SETUP-GUIDE.md
+   → Detailed troubleshooting
+
+4. QUICK-REFERENCE.md
+   → Quick lookup and tips
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✨ YOU'RE READY!
+═══════════════════════════════════════════════════════════════════════════════
+
+Follow these steps:
+
+1. ✓ Install Node.js (if needed)
+2. ✓ Copy files to correct locations
+3. ✓ Double-click setup-windows.bat
+4. ✓ Wait for "Setup Complete"
+5. ✓ Double-click start-app.bat
+6. ✓ App opens in browser
+7. ✓ Start managing your WWE universe!
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+Questions? Problems?
+
+✓ Command Prompt shows error? Read SETUP-GUIDE.md Troubleshooting
+✓ File placement issue? Read COPY-INSTRUCTIONS.txt
+✓ How to use features? Read COMPLETE-PACKAGE-GUIDE.md
+✓ Quick lookup? Read QUICK-REFERENCE.md
+
+
+═══════════════════════════════════════════════════════════════════════════════
+
+Good luck! 🎭👑
+
+Your WWE Universe Mode Management System is ready to go!
+
+═══════════════════════════════════════════════════════════════════════════════
+

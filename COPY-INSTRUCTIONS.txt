@@ -1,0 +1,204 @@
+WWE UNIVERSE MODE MANAGER - COPY INSTRUCTIONS
+==============================================
+
+This guide shows exactly where to copy each file.
+
+STEP 1: Create Folder Structure
+================================
+
+Create these folders on your computer:
+
+  wwe-universe-mode/                (main folder)
+    ├── server/                     (new folder)
+    ├── public/                     (new folder)
+    └── data/                       (new folder - created by app)
+
+
+STEP 2: Copy Files to Correct Locations
+========================================
+
+File from package → Copy to location
+─────────────────────────────────────────────────────────────
+
+1. package.json
+   FROM: package.json (in this folder)
+   TO:   wwe-universe-mode/package.json
+   HOW:  Copy file, keep name as is
+
+
+2. server-index.js
+   FROM: server-index.js (in this folder)
+   TO:   wwe-universe-mode/server/index.js
+   HOW:  Copy file and RENAME to "index.js"
+
+
+3. db.js
+   FROM: db.js (in this folder)
+   TO:   wwe-universe-mode/server/db.js
+   HOW:  Copy file, keep name as is
+
+
+4. public-index.html
+   FROM: public-index.html (in this folder)
+   TO:   wwe-universe-mode/public/index.html
+   HOW:  Copy file and RENAME to "index.html"
+
+
+STEP 3: Final Folder Structure
+==============================
+
+After copying files, you should have:
+
+  wwe-universe-mode/
+    ├── package.json              ✓ Copied from: package.json
+    ├── start-app.bat             (optional launcher)
+    ├── setup-windows.bat         (optional installer)
+    │
+    ├── server/
+    │   ├── index.js              ✓ From: server-index.js (renamed)
+    │   └── db.js                 ✓ Copied from: db.js
+    │
+    └── public/
+        └── index.html            ✓ From: public-index.html (renamed)
+
+
+STEP 4: Install & Run
+=====================
+
+Open Command Prompt/Terminal in wwe-universe-mode folder:
+
+  npm install              (installs dependencies)
+  npm start                (starts the server)
+
+Then open browser:
+  http://localhost:5000
+
+
+FILE CHECKLIST
+==============
+
+Before running npm install, verify you have:
+
+  [ ] package.json in root (wwe-universe-mode/)
+  [ ] server/index.js (from server-index.js)
+  [ ] server/db.js
+  [ ] public/index.html (from public-index.html)
+
+
+VISUAL FILE MAP
+===============
+
+YOUR DOWNLOADS/PACKAGE:          YOUR PROJECT FOLDER:
+────────────────────────────     ────────────────────────
+
+package.json                  →   wwe-universe-mode/
+                                  └── package.json
+
+server-index.js              →   wwe-universe-mode/server/
+                                  └── index.js (renamed)
+
+db.js                        →   wwe-universe-mode/server/
+                                  └── db.js
+
+public-index.html            →   wwe-universe-mode/public/
+                                  └── index.html (renamed)
+
+
+WINDOWS FILE EXPLORER METHOD
+=============================
+
+1. Open Windows File Explorer
+
+2. Create new folder: wwe-universe-mode
+
+3. Go inside wwe-universe-mode folder
+
+4. Create TWO new folders inside:
+   - Right-click → New → Folder → name: "server"
+   - Right-click → New → Folder → name: "public"
+
+5. Copy package.json here (into wwe-universe-mode root)
+
+6. Copy server-index.js into server folder, rename to index.js
+   - Right-click on file → Rename → type "index.js"
+
+7. Copy db.js into server folder
+
+8. Copy public-index.html into public folder, rename to index.html
+   - Right-click on file → Rename → type "index.html"
+
+9. Final check - you should see:
+   ✓ wwe-universe-mode/package.json
+   ✓ wwe-universe-mode/server/index.js
+   ✓ wwe-universe-mode/server/db.js
+   ✓ wwe-universe-mode/public/index.html
+
+10. Open Command Prompt in wwe-universe-mode folder:
+    - Hold Shift + Right-click in empty space
+    - Click "Open command window here" (or PowerShell)
+    - Type: npm install
+    - Type: npm start
+
+11. Open browser: http://localhost:5000
+
+
+AUTOMATIC METHOD (WINDOWS)
+===========================
+
+If you have setup-windows.bat:
+
+1. Copy it to wwe-universe-mode/ folder
+
+2. Double-click setup-windows.bat
+
+3. It will automatically:
+   - Create folder structure
+   - Check for files
+   - Run npm install
+
+4. Follow the prompts
+
+
+TROUBLESHOOTING
+===============
+
+"Cannot find module" error
+→ Check that ALL 4 files are in correct locations
+→ Run: npm install again
+
+"File not found" error
+→ Check spelling: index.js (lowercase), not Index.js
+→ Check folder locations match exactly
+
+"Port 5000 already in use"
+→ Close other applications using port 5000
+→ Or change port in server/index.js
+
+
+READY TO START?
+===============
+
+Once files are copied and npm install completes:
+
+  npm start
+
+Then go to: http://localhost:5000
+
+You're done! Start adding wrestlers.
+
+
+DOUBLE-CHECK BEFORE RUNNING
+============================
+
+✓ Node.js installed (node --version)
+✓ 4 files copied to correct locations
+✓ Filenames match exactly (case-sensitive on Mac/Linux)
+✓ Folder structure matches diagram above
+✓ npm install completed without errors
+
+If all checks pass:
+  npm start
+  Open http://localhost:5000
+
+Good luck! 🎭👑
+
