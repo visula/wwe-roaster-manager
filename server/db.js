@@ -20,10 +20,46 @@ class DatabaseManager {
   init() {
     this.db.pragma('foreign_keys = ON');
 
-    // Migrate: add day column if it doesn't exist yet
+    // Migrate: add day / special show columns if they don't exist yet
     const cols = this.db.prepare(`PRAGMA table_info(shows)`).all();
     if (cols.length && !cols.find(c => c.name === 'day')) {
       this.db.exec(`ALTER TABLE shows ADD COLUMN day TEXT`);
+    }
+    if (cols.length && !cols.find(c => c.name === 'showType')) {
+      this.db.exec(`ALTER TABLE shows ADD COLUMN showType TEXT DEFAULT 'Weekly'`);
+    }
+    if (cols.length && !cols.find(c => c.name === 'eligibleShows')) {
+      this.db.exec(`ALTER TABLE shows ADD COLUMN eligibleShows TEXT`);
+    }
+    if (cols.length && !cols.find(c => c.name === 'matchLimit')) {
+      this.db.exec(`ALTER TABLE shows ADD COLUMN matchLimit INTEGER`);
+    }
+
+    // Migrate: add championshipId to matches if missing
+    const matchCols = this.db.prepare(`PRAGMA table_info(matches)`).all();
+    if (matchCols.length && !matchCols.find(c => c.name === 'championshipId')) {
+      this.db.exec(`ALTER TABLE matches ADD COLUMN championshipId INTEGER`);
+    }
+    if (matchCols.length && !matchCols.find(c => c.name === 'isImportant')) {
+      this.db.exec(`ALTER TABLE matches ADD COLUMN isImportant INTEGER DEFAULT 0`);
+    }
+    if (matchCols.length && !matchCols.find(c => c.name === 'category')) {
+      this.db.exec(`ALTER TABLE matches ADD COLUMN category TEXT`);
+    }
+
+    // Migrate: add new roster fields if missing
+    const wrestlerCols = this.db.prepare(`PRAGMA table_info(wrestlers)`).all();
+    if (wrestlerCols.length && !wrestlerCols.find(c => c.name === 'gender')) {
+      this.db.exec(`ALTER TABLE wrestlers ADD COLUMN gender TEXT`);
+    }
+    if (wrestlerCols.length && !wrestlerCols.find(c => c.name === 'overall')) {
+      this.db.exec(`ALTER TABLE wrestlers ADD COLUMN overall INTEGER`);
+    }
+    if (wrestlerCols.length && !wrestlerCols.find(c => c.name === 'alignment')) {
+      this.db.exec(`ALTER TABLE wrestlers ADD COLUMN alignment TEXT`);
+    }
+    if (wrestlerCols.length && !wrestlerCols.find(c => c.name === 'titles')) {
+      this.db.exec(`ALTER TABLE wrestlers ADD COLUMN titles TEXT`);
     }
 
     this.db.exec(`
@@ -31,7 +67,10 @@ class DatabaseManager {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL UNIQUE,
         abbreviation TEXT NOT NULL,
-        day TEXT
+        day TEXT,
+        showType TEXT DEFAULT 'Weekly',
+        eligibleShows TEXT,
+        matchLimit INTEGER
       );
 
       CREATE TABLE IF NOT EXISTS wrestlers (
@@ -41,6 +80,10 @@ class DatabaseManager {
         division TEXT DEFAULT 'Unassigned',
         status TEXT DEFAULT 'Active',
         imageUrl TEXT,
+        gender TEXT,
+        overall INTEGER,
+        alignment TEXT,
+        titles TEXT,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (show) REFERENCES shows(name)
       );
@@ -57,8 +100,11 @@ class DatabaseManager {
         result TEXT DEFAULT 'Pending',
         winner TEXT,
         notes TEXT,
+        championshipId INTEGER,
+        isImportant INTEGER DEFAULT 0,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (show) REFERENCES shows(name)
+        FOREIGN KEY (show) REFERENCES shows(name),
+        FOREIGN KEY (championshipId) REFERENCES championships(id)
       );
 
       CREATE TABLE IF NOT EXISTS championships (
@@ -138,16 +184,37 @@ class DatabaseManager {
     return this.db.prepare('SELECT * FROM shows ORDER BY name').all();
   }
 
-  addShow(name, abbreviation, day) {
+  getShowByName(name) {
+    return this.db.prepare('SELECT * FROM shows WHERE name = ?').get(name);
+  }
+
+  getShowById(id) {
+    return this.db.prepare('SELECT * FROM shows WHERE id = ?').get(id);
+  }
+
+  getMatchesCountByShow(show, excludeMatchId = null) {
+    if (excludeMatchId) {
+      return this.db.prepare('SELECT COUNT(*) as count FROM matches WHERE show = ? AND id != ?').get(show, excludeMatchId).count;
+    }
+    return this.db.prepare('SELECT COUNT(*) as count FROM matches WHERE show = ?').get(show).count;
+  }
+
+  getWrestlerShowsByNames(names) {
+    if (!names || names.length === 0) return [];
+    const placeholders = names.map(() => '?').join(',');
+    return this.db.prepare(`SELECT name, show FROM wrestlers WHERE name IN (${placeholders})`).all(...names);
+  }
+
+  addShow(name, abbreviation, day, showType = 'Weekly', eligibleShows = null, matchLimit = null) {
     const id = name.toLowerCase().replace(/\s/g, '').replace(/\//g, '');
-    this.db.prepare(`INSERT INTO shows (id, name, abbreviation, day) VALUES (?, ?, ?, ?)`)
-      .run(id, name, abbreviation, day);
+    this.db.prepare(`INSERT INTO shows (id, name, abbreviation, day, showType, eligibleShows, matchLimit) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .run(id, name, abbreviation, day, showType, eligibleShows, matchLimit);
     return id;
   }
 
-  updateShow(id, name, abbreviation, day) {
-    this.db.prepare(`UPDATE shows SET name = ?, abbreviation = ?, day = ? WHERE id = ?`)
-      .run(name, abbreviation, day, id);
+  updateShow(id, name, abbreviation, day, showType = 'Weekly', eligibleShows = null, matchLimit = null) {
+    this.db.prepare(`UPDATE shows SET name = ?, abbreviation = ?, day = ?, showType = ?, eligibleShows = ?, matchLimit = ? WHERE id = ?`)
+      .run(name, abbreviation, day, showType, eligibleShows, matchLimit, id);
   }
 
   deleteShow(id) {
@@ -167,17 +234,17 @@ class DatabaseManager {
     return this.db.prepare('SELECT * FROM wrestlers WHERE id = ?').get(id);
   }
 
-  addWrestler(name, show, division, status, imageUrl) {
+  addWrestler(name, show, division, status, imageUrl, gender, overall, alignment, titles) {
     const result = this.db.prepare(
-      `INSERT INTO wrestlers (name, show, division, status, imageUrl) VALUES (?, ?, ?, ?, ?)`
-    ).run(name, show, division, status, imageUrl);
+      `INSERT INTO wrestlers (name, show, division, status, imageUrl, gender, overall, alignment, titles) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(name, show, division, status, imageUrl, gender, overall, alignment, titles);
     return result.lastInsertRowid;
   }
 
-  updateWrestler(id, name, show, division, status, imageUrl) {
+  updateWrestler(id, name, show, division, status, imageUrl, gender, overall, alignment, titles) {
     this.db.prepare(
-      `UPDATE wrestlers SET name = ?, show = ?, division = ?, status = ?, imageUrl = ? WHERE id = ?`
-    ).run(name, show, division, status, imageUrl, id);
+      `UPDATE wrestlers SET name = ?, show = ?, division = ?, status = ?, imageUrl = ?, gender = ?, overall = ?, alignment = ?, titles = ? WHERE id = ?`
+    ).run(name, show, division, status, imageUrl, gender, overall, alignment, titles, id);
   }
 
   deleteWrestler(id) {
@@ -209,18 +276,18 @@ class DatabaseManager {
     ).all(limit);
   }
 
-  addMatch(show, type, participant1, participant2, participant3, participant4, date, result, winner, notes) {
+  addMatch(show, type, category, participant1, participant2, participant3, participant4, date, result, winner, notes, championshipId, isImportant) {
     const result_res = this.db.prepare(
-      `INSERT INTO matches (show, type, participant1, participant2, participant3, participant4, date, result, winner, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(show, type, participant1, participant2, participant3, participant4, date, result, winner, notes);
+      `INSERT INTO matches (show, type, category, participant1, participant2, participant3, participant4, date, result, winner, notes, championshipId, isImportant)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(show, type, category, participant1, participant2, participant3, participant4, date, result, winner, notes, championshipId || null, isImportant ? 1 : 0);
     return result_res.lastInsertRowid;
   }
 
-  updateMatch(id, show, type, participant1, participant2, participant3, participant4, date, result, winner, notes) {
+  updateMatch(id, show, type, category, participant1, participant2, participant3, participant4, date, result, winner, notes, championshipId, isImportant) {
     this.db.prepare(
-      `UPDATE matches SET show = ?, type = ?, participant1 = ?, participant2 = ?, participant3 = ?, participant4 = ?, date = ?, result = ?, winner = ?, notes = ? WHERE id = ?`
-    ).run(show, type, participant1, participant2, participant3, participant4, date, result, winner, notes, id);
+      `UPDATE matches SET show = ?, type = ?, category = ?, participant1 = ?, participant2 = ?, participant3 = ?, participant4 = ?, date = ?, result = ?, winner = ?, notes = ?, championshipId = ?, isImportant = ? WHERE id = ?`
+    ).run(show, type, category, participant1, participant2, participant3, participant4, date, result, winner, notes, championshipId || null, isImportant ? 1 : 0, id);
   }
 
   deleteMatch(id) {

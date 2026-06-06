@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 5000;
 
 const upload = multer({ dest: path.join(__dirname, '../uploads/') });
 
-app.use(cors());
+app.use(cors({ origin: 'http://localhost:5000' }));
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, '../public')));
@@ -31,21 +31,21 @@ app.get('/api/shows', (req, res) => {
 });
 
 app.post('/api/shows', (req, res) => {
-  const { name, abbreviation, day } = req.body;
+  const { name, abbreviation, day, showType, eligibleShows, matchLimit } = req.body;
   if (!name || !abbreviation) return res.status(400).json({ error: 'Name and abbreviation are required' });
   try {
-    const id = db.addShow(name, abbreviation, day || null);
-    res.json({ id, name, abbreviation, day });
+    const id = db.addShow(name, abbreviation, day || null, showType || 'Weekly', Array.isArray(eligibleShows) ? eligibleShows.join(',') : (eligibleShows || null), matchLimit || null);
+    res.json({ id, name, abbreviation, day, showType, eligibleShows, matchLimit });
   } catch (e) {
     res.status(400).json({ error: 'Show name already exists' });
   }
 });
 
 app.put('/api/shows/:id', (req, res) => {
-  const { name, abbreviation, day } = req.body;
+  const { name, abbreviation, day, showType, eligibleShows, matchLimit } = req.body;
   if (!name || !abbreviation) return res.status(400).json({ error: 'Name and abbreviation are required' });
   try {
-    db.updateShow(req.params.id, name, abbreviation, day || null);
+    db.updateShow(req.params.id, name, abbreviation, day || null, showType || 'Weekly', Array.isArray(eligibleShows) ? eligibleShows.join(',') : (eligibleShows || null), matchLimit || null);
     res.json({ success: true });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -64,17 +64,17 @@ app.get('/api/wrestlers', (req, res) => {
 });
 
 app.post('/api/wrestlers', (req, res) => {
-  const { name, show, division, status, imageUrl } = req.body;
+  const { name, show, division, status, imageUrl, gender, overall, alignment, titles } = req.body;
   if (!name || !show) return res.status(400).json({ error: 'Name and show are required' });
-  const id = db.addWrestler(name, show, division || 'Unassigned', status || 'Active', imageUrl || '');
-  res.json({ id, name, show, division, status, imageUrl });
+  const id = db.addWrestler(name, show, division || 'Unassigned', status || 'Active', imageUrl || '', gender || '', overall || null, alignment || '', titles || '');
+  res.json({ id, name, show, division, status, imageUrl, gender, overall, alignment, titles });
 });
 
 app.put('/api/wrestlers/:id', (req, res) => {
   const { id } = req.params;
-  const { name, show, division, status, imageUrl } = req.body;
-  db.updateWrestler(id, name, show, division, status, imageUrl);
-  res.json({ id, name, show, division, status, imageUrl });
+  const { name, show, division, status, imageUrl, gender, overall, alignment, titles } = req.body;
+  db.updateWrestler(id, name, show, division, status, imageUrl, gender, overall, alignment, titles);
+  res.json({ id, name, show, division, status, imageUrl, gender, overall, alignment, titles });
 });
 
 app.delete('/api/wrestlers/:id', (req, res) => {
@@ -89,17 +89,17 @@ app.get('/api/matches', (req, res) => {
 });
 
 app.post('/api/matches', (req, res) => {
-  const { show, type, participant1, participant2, participant3, participant4, date, result, winner, notes } = req.body;
+  const { show, type, category, participant1, participant2, participant3, participant4, date, result, winner, notes, championshipId, isImportant } = req.body;
   if (!show || !participant1) return res.status(400).json({ error: 'Show and at least one participant required' });
-  const id = db.addMatch(show, type || 'Singles', participant1, participant2, participant3, participant4, date || new Date().toISOString(), result || 'Pending', winner || null, notes || '');
-  res.json({ id, show, type, participant1, participant2, participant3, participant4, date, result, winner, notes });
+  const id = db.addMatch(show, type || 'Singles', category || '', participant1, participant2, participant3, participant4, date || new Date().toISOString(), result || 'Pending', winner || null, notes || '', championshipId || null, isImportant || 0);
+  res.json({ id, show, type, category, participant1, participant2, participant3, participant4, date, result, winner, notes, championshipId, isImportant });
 });
 
 app.put('/api/matches/:id', (req, res) => {
   const { id } = req.params;
-  const { show, type, participant1, participant2, participant3, participant4, date, result, winner, notes } = req.body;
-  db.updateMatch(id, show, type, participant1, participant2, participant3, participant4, date, result, winner, notes);
-  res.json({ id, show, type, participant1, participant2, participant3, participant4, date, result, winner, notes });
+  const { show, type, category, participant1, participant2, participant3, participant4, date, result, winner, notes, championshipId, isImportant } = req.body;
+  db.updateMatch(id, show, type, category, participant1, participant2, participant3, participant4, date, result, winner, notes, championshipId || null, isImportant || 0);
+  res.json({ id, show, type, category, participant1, participant2, participant3, participant4, date, result, winner, notes, championshipId, isImportant });
 });
 
 app.delete('/api/matches/:id', (req, res) => {
@@ -153,7 +153,7 @@ app.post('/api/transfers', (req, res) => {
   if (!wrestlerId || !fromShow || !toShow) return res.status(400).json({ error: 'Wrestler ID, from show, and to show are required' });
   const id = db.addTransfer(wrestlerId, fromShow, toShow, date || new Date().toISOString(), reason || '');
   const wrestler = db.getWrestlerById(wrestlerId);
-  if (wrestler) db.updateWrestler(wrestlerId, wrestler.name, toShow, wrestler.division, wrestler.status, wrestler.imageUrl);
+  if (wrestler) db.updateWrestler(wrestlerId, wrestler.name, toShow, wrestler.division, wrestler.status, wrestler.imageUrl, wrestler.gender, wrestler.overall, wrestler.alignment, wrestler.titles);
   res.json({ id, wrestlerId, fromShow, toShow, date, reason });
 });
 
@@ -176,21 +176,27 @@ app.get('/api/dashboard/stats', (req, res) => {
 app.post('/api/import/wrestlers', upload.single('file'), (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const fileContent = fs.readFileSync(req.file.path, 'utf-8');
+    const uploadsDir = path.join(__dirname, '../uploads/');
+    const rawPath = req.file.path;
+    const safePath = path.normalize(rawPath);
+    if (!safePath.startsWith(path.normalize(uploadsDir))) {
+      return res.status(400).json({ error: 'Invalid file path' });
+    }
+    const fileContent = fs.readFileSync(safePath, 'utf-8');
     const records = parse(fileContent, { columns: true, skip_empty_lines: true, trim: true });
     let imported = 0;
     const errors = [];
     records.forEach((record, index) => {
       try {
-        const { name, show, division, status } = record;
+        const { name, show, division, status, gender, overall, alignment, titles } = record;
         if (!name || !show) { errors.push(`Row ${index + 2}: Missing name or show`); return; }
-        db.addWrestler(name.trim(), show.trim(), division?.trim() || 'Unassigned', status?.trim() || 'Active', '');
+        db.addWrestler(name.trim(), show.trim(), division?.trim() || 'Unassigned', status?.trim() || 'Active', '', gender?.trim() || '', overall ? parseInt(overall) : null, alignment?.trim() || '', titles?.trim() || '');
         imported++;
       } catch (err) {
         errors.push(`Row ${index + 2}: ${err.message}`);
       }
     });
-    fs.unlinkSync(req.file.path);
+    fs.unlinkSync(safePath);
     res.json({ success: true, imported, errors, message: `Successfully imported ${imported} wrestlers` });
   } catch (err) {
     console.error('Import error:', err);
@@ -200,7 +206,7 @@ app.post('/api/import/wrestlers', upload.single('file'), (req, res) => {
 
 app.get('/api/import/sample', (req, res) => {
   res.set('Content-Type', 'text/csv');
-  res.send(`name,show,division,status\nRoman Reigns,RAW,Heavyweight,Active\nCody Rhodes,RAW,Heavyweight,Active\nRhea Ripley,RAW,Women's,Active\nGunther,RAW,Heavyweight,Active`);
+  res.send(`name,show,division,status,gender,overall,alignment,titles\nRoman Reigns,RAW,Heavyweight,Active,Male,95,Face,\nCody Rhodes,RAW,Heavyweight,Active,Male,95,Face,\nRhea Ripley,RAW,Women's,Active,Female,96,Face,\nGunther,RAW,Heavyweight,Active,Male,93,Tweener,`);
 });
 
 app.get('/', (req, res) => {
