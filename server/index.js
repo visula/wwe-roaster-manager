@@ -143,6 +143,57 @@ app.post('/api/championship-history', (req, res) => {
   res.json({ id, championshipId, holder, dateCaptured, notes });
 });
 
+// ==================== EVENTS ====================
+app.get('/api/events', (req, res) => {
+  res.json(db.getAllEvents());
+});
+
+app.post('/api/events', (req, res) => {
+  const { name, show, date, pools, notes } = req.body;
+  if (!name || !show) return res.status(400).json({ error: 'Name and show required' });
+  const id = db.addEvent(name, show, date || new Date().toISOString(), pools || '', notes || '');
+  res.json({ id, name, show, date, pools, notes, status: 'Upcoming' });
+});
+
+app.put('/api/events/:id', (req, res) => {
+  const { name, show, date, pools, notes, status } = req.body;
+  db.updateEvent(req.params.id, name, show, date, pools || '', notes || '', status || 'Upcoming');
+  res.json({ success: true });
+});
+
+app.delete('/api/events/:id', (req, res) => {
+  db.deleteEvent(req.params.id);
+  res.json({ success: true });
+});
+
+// ==================== TEAMS ====================
+app.get('/api/teams', (req, res) => {
+  const rows = db.getAllTeams();
+  res.json(rows.map(t => ({ ...t, members: t.members ? t.members.split(',').map(m => m.trim()).filter(Boolean) : [] })));
+});
+
+app.post('/api/teams', (req, res) => {
+  const { name, members } = req.body;
+  if (!name) return res.status(400).json({ error: 'Team name required' });
+  try {
+    const id = db.addTeam(name, members || []);
+    res.json({ id, name, members: members || [] });
+  } catch(e) { res.status(400).json({ error: 'Team name already exists' }); }
+});
+
+app.put('/api/teams/:id', (req, res) => {
+  const { name, members } = req.body;
+  try {
+    db.updateTeam(req.params.id, name, members || []);
+    res.json({ success: true });
+  } catch(e) { res.status(400).json({ error: e.message }); }
+});
+
+app.delete('/api/teams/:id', (req, res) => {
+  db.deleteTeam(req.params.id);
+  res.json({ success: true });
+});
+
 // ==================== ROSTER TRANSFERS ====================
 app.get('/api/transfers', (req, res) => {
   res.json(db.getAllTransfers());

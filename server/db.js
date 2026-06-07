@@ -75,6 +75,32 @@ class DatabaseManager {
       this.db.exec(`ALTER TABLE wrestlers ADD COLUMN titles TEXT`);
     }
 
+    // Migrate: add events table
+    const evtCols = this.db.prepare(`PRAGMA table_info(events)`).all();
+    if (!evtCols.length) {
+      this.db.exec(`CREATE TABLE IF NOT EXISTS events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        show TEXT NOT NULL,
+        date TEXT NOT NULL,
+        pools TEXT,
+        notes TEXT,
+        status TEXT DEFAULT 'Upcoming',
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`);
+    }
+
+    // Migrate: add teams table
+    const teamCols = this.db.prepare(`PRAGMA table_info(teams)`).all();
+    if (!teamCols.length) {
+      this.db.exec(`CREATE TABLE IF NOT EXISTS teams (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        members TEXT NOT NULL,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`);
+    }
+
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS shows (
         id TEXT PRIMARY KEY,
@@ -348,6 +374,53 @@ class DatabaseManager {
       `INSERT INTO championship_history (championshipId, holder, dateCaptured, notes) VALUES (?, ?, ?, ?)`
     ).run(championshipId, holder, dateCaptured, notes);
     return result.lastInsertRowid;
+  }
+
+  // ==================== EVENTS ====================
+  getAllEvents() {
+    return this.db.prepare('SELECT * FROM events ORDER BY date DESC').all();
+  }
+
+  getEventById(id) {
+    return this.db.prepare('SELECT * FROM events WHERE id = ?').get(id);
+  }
+
+  addEvent(name, show, date, pools, notes) {
+    const result = this.db.prepare(
+      `INSERT INTO events (name, show, date, pools, notes) VALUES (?, ?, ?, ?, ?)`
+    ).run(name, show, date, pools || '', notes || '');
+    return result.lastInsertRowid;
+  }
+
+  updateEvent(id, name, show, date, pools, notes, status) {
+    this.db.prepare(
+      `UPDATE events SET name=?, show=?, date=?, pools=?, notes=?, status=? WHERE id=?`
+    ).run(name, show, date, pools || '', notes || '', status || 'Upcoming', id);
+  }
+
+  deleteEvent(id) {
+    this.db.prepare('DELETE FROM events WHERE id = ?').run(id);
+  }
+
+  // ==================== TEAMS ====================
+  getAllTeams() {
+    return this.db.prepare('SELECT * FROM teams ORDER BY name').all();
+  }
+
+  addTeam(name, members) {
+    const result = this.db.prepare(
+      `INSERT INTO teams (name, members) VALUES (?, ?)`
+    ).run(name, Array.isArray(members) ? members.join(',') : members);
+    return result.lastInsertRowid;
+  }
+
+  updateTeam(id, name, members) {
+    this.db.prepare(`UPDATE teams SET name=?, members=? WHERE id=?`)
+      .run(name, Array.isArray(members) ? members.join(',') : members, id);
+  }
+
+  deleteTeam(id) {
+    this.db.prepare('DELETE FROM teams WHERE id = ?').run(id);
   }
 
   // ==================== TRANSFERS ====================

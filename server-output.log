@@ -1,7 +1,3 @@
-
-> wwe-universe-mode-manager@1.0.0 start
-> node server/index.js
-
 ✅ Database initialized
 🎭 WWE Universe Mode Manager running on http://localhost:5000
 📊 Database initialized at ./data/wwe-universe.db
