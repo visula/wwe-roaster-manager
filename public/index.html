@@ -527,6 +527,11 @@
                     <option value="Pending">Pending</option>
                     <option value="Completed">Completed</option>
                 </select>
+                <select id="mainEventArchiveFilter" onchange="filterMainEvents()">
+                    <option value="active">Active Events</option>
+                    <option value="archived">Archived Events</option>
+                    <option value="all">All Events</option>
+                </select>
             </div>
             <div id="mainEventsContainer"></div>
         </div>
@@ -806,7 +811,7 @@
                 <div id="meMatchParticipantsGrid"></div>
                 <div class="form-group">
                     <label>Championship on the Line</label>
-                    <select id="meMatchChampionship"><option value="">No Championship</option></select>
+                    <select id="meMatchChampionship" onchange="onMEChampionshipSelected()"><option value="">No Championship</option></select>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
@@ -1032,7 +1037,7 @@
                 <div id="crossShowNote" class="cross-show-note"></div>
                 <div class="form-group">
                     <label>Championship on the Line</label>
-                    <select id="matchChampionship">
+                    <select id="matchChampionship" onchange="onChampionshipSelected()">
                         <option value="">No Championship</option>
                     </select>
                 </div>
@@ -1864,17 +1869,23 @@
         }
 
         function displayMatches(data) {
-            const html = data.length > 0
-                ? data.map(m => {
+            // Filter out event headers and main event matches from regular matches display
+            const regularMatches = data.filter(m => {
+                const notes = m.notes || '';
+                return !notes.includes('[MEEVENT]') && !notes.includes('[MEMATCH:');
+            });
+            const html = regularMatches.length > 0
+                ? regularMatches.map(m => {
                     const champ = m.championshipId ? championships.find(c => c.id === m.championshipId) : null;
                     const storylineTag = m.isImportant ? '<span class="badge badge-danger">⭐ Storyline</span>' : '-';
                     const category = m.category ? `<span class="badge badge-info">${m.category}</span>` : '-';
+                    const participants = [m.participant1, m.participant2, m.participant3, m.participant4, m.participant5, m.participant6, m.participant7, m.participant8].filter(Boolean).join(' vs ');
                     return `<tr>
                         <td>${new Date(m.date).toLocaleDateString()}</td>
                         <td>${m.show}</td>
                         <td>${category}</td>
                         <td>${m.type}</td>
-                        <td>${[m.participant1, m.participant2, m.participant3, m.participant4].filter(Boolean).join(' vs ')}</td>
+                        <td>${participants}</td>
                         <td>${champ ? `<span class="badge badge-info">${champ.name}</span>` : '-'}</td>
                         <td>${storylineTag}</td>
                         <td><span class="badge ${m.result === 'Pending' ? 'badge-warning' : 'badge-success'}">${m.result}</span></td>
@@ -1894,23 +1905,31 @@
         function filterMatches() {
             const show = document.getElementById('matchShowFilter').value;
             const status = document.getElementById('matchStatusFilter').value;
-            const filtered = allMatches.filter(m =>
-                (!show || m.show === show) &&
-                (!status || m.result === status)
-            );
+            // Filter out events and main event matches
+            const filtered = allMatches.filter(m => {
+                const notes = m.notes || '';
+                return !notes.includes('[MEEVENT]') && !notes.includes('[MEMATCH:') &&
+                    (!show || m.show === show) &&
+                    (!status || m.result === status);
+            });
             displayMatches(filtered);
         }
 
         function displayStorylines(data) {
-            const storylines = data.filter(m => m.isImportant);
+            // Filter storylines: must have isImportant=1 AND not be event/main event records
+            const storylines = data.filter(m => {
+                const notes = m.notes || '';
+                return m.isImportant && !notes.includes('[MEEVENT]') && !notes.includes('[MEMATCH:');
+            });
             const html = storylines.length > 0
                 ? storylines.map(m => {
                     const champ = m.championshipId ? championships.find(c => c.id === m.championshipId) : null;
+                    const participants = [m.participant1, m.participant2, m.participant3, m.participant4, m.participant5, m.participant6, m.participant7, m.participant8].filter(Boolean).join(' vs ');
                     return `<tr>
                         <td>${new Date(m.date).toLocaleDateString()}</td>
                         <td>${m.show}</td>
                         <td>${m.type}</td>
-                        <td>${[m.participant1, m.participant2, m.participant3, m.participant4].filter(Boolean).join(' vs ')}</td>
+                        <td>${participants}</td>
                         <td>${champ ? `<span class="badge badge-info">${champ.name}</span>` : '-'}</td>
                         <td><span class="badge ${m.result === 'Pending' ? 'badge-warning' : 'badge-success'}">${m.result}</span></td>
                         <td>${m.winner || '-'}</td>
@@ -1927,12 +1946,14 @@
         function filterStorylines() {
             const show = document.getElementById('storylineShowFilter').value;
             const status = document.getElementById('storylineStatusFilter').value;
-            const filtered = allMatches.filter(m =>
-                m.isImportant &&
-                (!show || m.show === show) &&
-                (!status || m.result === status)
-            );
-            displayStorylines(filtered.map(m => ({ ...m, isImportant: 1 })));
+            const filtered = allMatches.filter(m => {
+                const notes = m.notes || '';
+                return m.isImportant &&
+                    !notes.includes('[MEEVENT]') && !notes.includes('[MEMATCH:') &&
+                    (!show || m.show === show) &&
+                    (!status || m.result === status);
+            });
+            displayStorylines(filtered);
         }
 
         async function loadChampionships() {
@@ -2165,13 +2186,24 @@
                 el('meMatchResult').value = m.result || 'Pending';
                 const cleanNotes = (m.notes||'').replace(/\[MEMATCH:[^\]]+\]/g,'').trim();
                 el('meMatchNotes').value = cleanNotes;
+                
+                // Set show filter to first pool show by default
+                if (poolShows.length > 0) {
+                    showFilter.value = poolShows[0];
+                }
+                
                 buildMEMatchSlots(ME_MATCH_SLOTS[m.type]||2, poolTag);
-                [m.participant1,m.participant2,m.participant3,m.participant4].forEach((p,i) => {
-                    const s = document.getElementById(`meMP${i+1}`); if(s&&p) s.value=p;
-                });
+                
+                // Wait for DOM to update, then set participant values
+                setTimeout(() => {
+                    [m.participant1,m.participant2,m.participant3,m.participant4,m.participant5,m.participant6,m.participant7,m.participant8].forEach((p,i) => {
+                        const s = document.getElementById(`meMP${i+1}`); if(s&&p) s.value=p;
+                    });
+                }, 0);
+                
                 populateMEMatchChampionships(eventShow, m.championshipId);
                 if (m.result==='Completed') {
-                    const parts = [m.participant1,m.participant2,m.participant3,m.participant4].filter(Boolean);
+                    const parts = [m.participant1,m.participant2,m.participant3,m.participant4,m.participant5,m.participant6,m.participant7,m.participant8].filter(Boolean);
                     const sel = el('meMatchWinner');
                     sel.innerHTML = '<option value="">No Winner Yet</option>';
                     parts.forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); });
@@ -2216,21 +2248,76 @@
         function onMEMatchShowFilterChange() {
             const type = document.getElementById('meMatchType').value;
             const poolTag = document.getElementById('meMatchPoolTag').value;
+            const matchId = document.getElementById('meMatchId').value;
+            
             buildMEMatchSlots(ME_MATCH_SLOTS[type]||2, poolTag);
+            
+            // If editing, restore participant values after rebuilding slots
+            if (matchId) {
+                const m = allMatches.find(x => x.id == matchId);
+                if (m) {
+                    setTimeout(() => {
+                        [m.participant1,m.participant2,m.participant3,m.participant4,m.participant5,m.participant6,m.participant7,m.participant8].forEach((p,i) => {
+                            const s = document.getElementById(`meMP${i+1}`); if(s&&p) s.value=p;
+                        });
+                    }, 0);
+                }
+            }
         }
 
         function onMEMatchTypeChange() {
             const type = document.getElementById('meMatchType').value;
             const poolTag = document.getElementById('meMatchPoolTag').value;
+            const matchId = document.getElementById('meMatchId').value;
+            
             buildMEMatchSlots(ME_MATCH_SLOTS[type]||2, poolTag);
+            
+            // If editing, restore participant values after rebuilding slots
+            if (matchId) {
+                const m = allMatches.find(x => x.id == matchId);
+                if (m) {
+                    setTimeout(() => {
+                        [m.participant1,m.participant2,m.participant3,m.participant4,m.participant5,m.participant6,m.participant7,m.participant8].forEach((p,i) => {
+                            const s = document.getElementById(`meMP${i+1}`); if(s&&p) s.value=p;
+                        });
+                    }, 0);
+                }
+            }
         }
 
         function populateMEMatchChampionships(show, selectedId) {
             const sel = document.getElementById('meMatchChampionship');
             sel.innerHTML = '<option value="">No Championship</option>';
             const pool = show ? championships.filter(c => c.show===show) : championships;
-            pool.forEach(c => { const o=document.createElement('option'); o.value=c.id; o.textContent=`${c.name} (${c.holder})`; sel.appendChild(o); });
+            pool.forEach(c => { 
+                const o=document.createElement('option'); 
+                o.value=c.id; 
+                o.textContent=`${c.name} (${c.holder})`;
+                o.dataset.holder = c.holder; // Store current holder
+                sel.appendChild(o); 
+            });
             if (selectedId) sel.value = selectedId;
+        }
+
+        // Auto-add champion for main event matches
+        function onMEChampionshipSelected() {
+            const champSel = document.getElementById('meMatchChampionship');
+            const selectedOption = champSel.options[champSel.selectedIndex];
+            const holder = selectedOption.dataset.holder;
+            
+            if (holder && holder !== 'Vacant') {
+                // Set first participant to champion
+                const p1 = document.getElementById('meMP1');
+                if (p1) {
+                    // Find the champion in the dropdown
+                    for (let i = 0; i < p1.options.length; i++) {
+                        if (p1.options[i].value === holder) {
+                            p1.value = holder;
+                            break;
+                        }
+                    }
+                }
+            }
         }
 
         function onMEMatchResultChange() {
@@ -2264,12 +2351,12 @@
             const count = ME_MATCH_SLOTS[type]||2;
             const participants = [];
             for(let i=1;i<=count;i++){ const el=document.getElementById(`meMP${i}`); participants.push(el?el.value:''); }
-            const [p1,p2,p3,p4] = participants;
+            const [p1,p2,p3,p4,p5,p6,p7,p8] = participants;
             const url = matchId ? `${API}/matches/${matchId}` : `${API}/matches`;
             const method = matchId ? 'PUT' : 'POST';
             try {
                 const res = await fetch(url, { method, headers:{'Content-Type':'application/json'},
-                    body: JSON.stringify({show, type, category, participant1:p1, participant2:p2, participant3:p3, participant4:p4, date, result, winner, notes, championshipId:champId, isImportant:1}) });
+                    body: JSON.stringify({show, type, category, participant1:p1, participant2:p2, participant3:p3, participant4:p4, participant5:p5, participant6:p6, participant7:p7, participant8:p8, date, result, winner, notes, championshipId:champId, isImportant:1}) });
                 if (res.ok) { closeModal('meMatchModal'); await loadMatches(); }
                 else alert('Error saving match');
             } catch(err) { alert('Error saving match'); }
@@ -2278,10 +2365,29 @@
         function displayMainEvents(data) {
             const showF = document.getElementById('mainEventShowFilter').value;
             const statusF = document.getElementById('mainEventStatusFilter').value;
-            const events = data.filter(m => (m.notes||'').includes('[MEEVENT]') &&
-                (!showF || m.show===showF) && (!statusF || m.result===statusF));
+            const archiveF = document.getElementById('mainEventArchiveFilter').value;
+            
+            const events = data.filter(m => {
+                const notes = m.notes || '';
+                const isEvent = notes.includes('[MEEVENT]');
+                const isArchived = notes.includes('[ARCHIVED]');
+                
+                // Apply archive filter
+                let passArchiveFilter = true;
+                if (archiveF === 'active') passArchiveFilter = !isArchived;
+                else if (archiveF === 'archived') passArchiveFilter = isArchived;
+                
+                return isEvent && passArchiveFilter &&
+                    (!showF || m.show===showF) && 
+                    (!statusF || m.result===statusF);
+            });
+            
             const container = document.getElementById('mainEventsContainer');
-            if (!events.length) { container.innerHTML='<p class="no-data">No main events created yet.</p>'; return; }
+            if (!events.length) { 
+                const archiveText = archiveF === 'archived' ? 'archived ' : (archiveF === 'active' ? 'active ' : '');
+                container.innerHTML=`<p class="no-data">No ${archiveText}main events found.</p>`; 
+                return; 
+            }
             container.innerHTML = events.map(ev => {
                 const nameMatch = (ev.notes||'').match(/\[MENAME:([^\]]+)\]/);
                 const evName = nameMatch ? nameMatch[1] : 'Main Event';
@@ -2291,11 +2397,18 @@
                 const poolTagFull = allPools.join(',');
                 const evMatches = data.filter(m => (m.notes||'').includes(`[MEMATCH:${ev.id}]`));
                 const safeName = evName.replace(/'/g,"\\'");
+                
+                // Determine if event is completed (all matches completed)
+                const allCompleted = evMatches.length > 0 && evMatches.every(m => m.result === 'Completed');
+                const statusBadge = allCompleted ? '<span class="badge badge-success" style="margin-left:10px;">Completed</span>' : '<span class="badge badge-warning" style="margin-left:10px;">Upcoming</span>';
+                
                 const matchRows = evMatches.length > 0 ? evMatches.map(m => {
                     const champ = m.championshipId ? championships.find(c=>c.id===m.championshipId) : null;
+                    const catBadge = m.category ? `<span class="badge badge-info" style="font-size:0.7em;margin-right:5px;">${m.category}</span>` : '';
+                    const participants = [m.participant1,m.participant2,m.participant3,m.participant4,m.participant5,m.participant6,m.participant7,m.participant8].filter(Boolean).join(' <span style="color:var(--red)">vs</span> ');
                     return `<tr>
-                        <td><strong>${m.type}</strong></td>
-                        <td>${[m.participant1,m.participant2,m.participant3,m.participant4].filter(Boolean).join(' <span style="color:var(--red)">vs</span> ')}</td>
+                        <td>${catBadge}<strong>${m.type}</strong></td>
+                        <td>${participants}</td>
                         <td>${champ?`<span class="badge badge-gold" style="background:#3d2a00;color:#fbbf24;border:1px solid #92400e;">${champ.name}</span>`:'-'}</td>
                         <td><span class="badge ${m.result==='Pending'?'badge-warning':'badge-success'}">${m.result}</span></td>
                         <td>${m.winner ? `<strong>${m.winner}</strong>` : '-'}</td>
@@ -2308,13 +2421,14 @@
                 return `<div class="me-event-card">
                     <div class="me-event-header">
                         <div>
-                            <span class="me-event-title">${evName}</span>
+                            <span class="me-event-title">${evName}</span>${statusBadge}
                             ${poolBadges}
                             <div class="me-event-meta" style="margin-top:4px;">${new Date(ev.date).toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'})}</div>
                         </div>
                         <div class="action-buttons">
                             <button class="btn btn-primary" style="padding:7px 14px;font-size:0.83em;" onclick="openMEAddMatchModal(${ev.id},'${safeName}','${poolTagFull}',null)">+ Add Match</button>
                             <button class="btn btn-secondary" style="padding:7px 14px;font-size:0.83em;" onclick="openCreateMainEventModal(${ev.id})">Edit</button>
+                            ${allCompleted ? `<button class="btn btn-gold" style="padding:7px 14px;font-size:0.83em;" onclick="archiveMainEvent(${ev.id})">Archive</button>` : ''}
                             <button class="btn btn-danger" style="padding:7px 14px;font-size:0.83em;" onclick="deleteMainEvent(${ev.id})">Delete</button>
                         </div>
                     </div>
@@ -2324,6 +2438,34 @@
                         <tbody>${matchRows}</tbody></table></div>
                     </div></div>`;
             }).join('');
+        }
+
+        async function archiveMainEvent(eventId) {
+            const event = allMatches.find(m => m.id === eventId);
+            if (!event) return;
+            
+            // Mark event as archived by adding [ARCHIVED] tag to notes
+            const updatedNotes = (event.notes || '') + '[ARCHIVED]';
+            
+            try {
+                const res = await fetch(`${API}/matches/${eventId}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        ...event,
+                        notes: updatedNotes,
+                        result: 'Completed'
+                    })
+                });
+                if (res.ok) {
+                    await loadMatches();
+                    alert('Event archived successfully!');
+                } else {
+                    alert('Error archiving event');
+                }
+            } catch(err) {
+                alert('Error archiving event');
+            }
         }
 
         async function deleteMainEvent(eventId) {
@@ -2458,9 +2600,31 @@
                 const opt = document.createElement('option');
                 opt.value = c.id;
                 opt.textContent = `${c.name} (${c.holder})`;
+                opt.dataset.holder = c.holder; // Store current holder
                 sel.appendChild(opt);
             });
             if (selectedId) sel.value = selectedId;
+        }
+
+        // Auto-add champion when championship is selected
+        function onChampionshipSelected() {
+            const champSel = document.getElementById('matchChampionship');
+            const selectedOption = champSel.options[champSel.selectedIndex];
+            const holder = selectedOption.dataset.holder;
+            
+            if (holder && holder !== 'Vacant') {
+                // Set first participant to champion
+                const p1 = document.getElementById('matchP1');
+                if (p1) {
+                    // Find the champion in the dropdown
+                    for (let i = 0; i < p1.options.length; i++) {
+                        if (p1.options[i].value === holder) {
+                            p1.value = holder;
+                            break;
+                        }
+                    }
+                }
+            }
         }
 
         function getCurrentParticipants() {
@@ -2543,13 +2707,18 @@
             document.querySelector('#matchModal .modal-header h2').textContent = 'Edit Match';
             const count = MATCH_SLOTS[m.type] || 2;
             buildParticipantSlots(count, m.show);
-            const parts = [m.participant1, m.participant2, m.participant3, m.participant4];
-            parts.forEach((p, i) => {
-                const el = document.getElementById(`matchP${i + 1}`);
-                if (el && p) el.value = p;
-            });
+            
+            // Wait for DOM to update, then set participant values
+            setTimeout(() => {
+                const parts = [m.participant1, m.participant2, m.participant3, m.participant4, m.participant5, m.participant6, m.participant7, m.participant8];
+                parts.forEach((p, i) => {
+                    const el = document.getElementById(`matchP${i + 1}`);
+                    if (el && p) el.value = p;
+                });
+            }, 0);
+            
             populateMatchChampionships(m.show, m.championshipId);
-            const editParts = [m.participant1, m.participant2, m.participant3, m.participant4].filter(Boolean);
+            const editParts = [m.participant1, m.participant2, m.participant3, m.participant4, m.participant5, m.participant6, m.participant7, m.participant8].filter(Boolean);
             if (m.result === 'Completed') populateMatchWinner(editParts, m.winner);
             else document.getElementById('matchWinner').innerHTML = '<option value="">No Winner Yet</option>';
             openModal('matchModal');
@@ -2573,7 +2742,7 @@
                 const el = document.getElementById(`matchP${i}`);
                 participants.push(el ? el.value : '');
             }
-            const [participant1, participant2, participant3, participant4] = participants;
+            const [participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8] = participants;
             const isEdit = !!id;
             const url = isEdit ? `${API}/matches/${id}` : `${API}/matches`;
             const method = isEdit ? 'PUT' : 'POST';
@@ -2581,7 +2750,7 @@
                 const res = await fetch(url, {
                     method,
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ show, category, type, participant1, participant2, participant3, participant4, date, result, winner, notes, championshipId, isImportant })
+                    body: JSON.stringify({ show, category, type, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant })
                 });
                 if (res.ok) {
                     closeModal('matchModal');

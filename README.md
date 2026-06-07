@@ -2,7 +2,7 @@
 
 A comprehensive web application for managing WWE 2K26 Universe Mode, featuring roster management, match scheduling, championships tracking, transfers, storylines, and main events.
 
-![Version](https://img.shields.io/badge/version-2.0.0-red)
+![Version](https://img.shields.io/badge/version-2.0.1-red)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## 🌟 Features
@@ -422,6 +422,10 @@ DELETE /api/matches/:id        # Delete match
   "participant2": "Randy Orton",
   "participant3": null,
   "participant4": null,
+  "participant5": null,
+  "participant6": null,
+  "participant7": null,
+  "participant8": null,
   "date": "2025-01-20T20:00:00",
   "result": "Pending",
   "winner": null,
@@ -430,6 +434,8 @@ DELETE /api/matches/:id        # Delete match
   "isImportant": 0
 }
 ```
+
+**Note**: participant5-8 are optional and used for larger matches (6-Way, 8-Way, Four on Four).
 
 #### Championships
 ```http
@@ -537,6 +543,10 @@ CREATE TABLE matches (
   participant2 TEXT,
   participant3 TEXT,
   participant4 TEXT,
+  participant5 TEXT,
+  participant6 TEXT,
+  participant7 TEXT,
+  participant8 TEXT,
   date TEXT NOT NULL,
   result TEXT DEFAULT 'Pending',
   winner TEXT,
@@ -545,6 +555,8 @@ CREATE TABLE matches (
   isImportant INTEGER DEFAULT 0
 );
 ```
+
+**Note**: Supports up to 8 participants per match for large multi-person matches (6-Way, 8-Way, Four on Four, etc.)
 
 #### championships
 ```sql
@@ -634,6 +646,10 @@ CREATE TABLE shows (
 - Wait for data to load (2-3 seconds on first launch)
 - Check Network tab in browser DevTools for failed requests
 - Verify API is responding: Open `http://localhost:5000/api/wrestlers`
+
+**Error**: Match participants not all showing when editing
+- **Cause**: Database was limited to 4 participants in v2.0.0
+- **Solution**: Fixed in v2.0.1 - database now supports 8 participants. After updating, restart the server to apply database migrations automatically.
 
 ### Match Configuration Not Saving
 
@@ -796,6 +812,12 @@ MIT License - See LICENSE file for details
 ---
 
 ## 📊 Version History
+
+### v2.0.1 (2025-01-21)
+- **Fixed**: Participant prefill bug for matches with 5-8 participants
+- **Fixed**: 6-Way, 8-Way, and Four on Four matches now properly save/load all participants
+- **Enhanced**: Database schema extended to support up to 8 participants per match
+- **Enhanced**: Frontend and backend updated to handle all participant slots correctly
 
 ### v2.0.0 (2025-01-20)
 - Added Main Events system

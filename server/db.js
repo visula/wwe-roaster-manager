@@ -46,6 +46,19 @@ class DatabaseManager {
     if (matchCols.length && !matchCols.find(c => c.name === 'category')) {
       this.db.exec(`ALTER TABLE matches ADD COLUMN category TEXT`);
     }
+    // Migrate: add participant5-8 columns for larger matches
+    if (matchCols.length && !matchCols.find(c => c.name === 'participant5')) {
+      this.db.exec(`ALTER TABLE matches ADD COLUMN participant5 TEXT`);
+    }
+    if (matchCols.length && !matchCols.find(c => c.name === 'participant6')) {
+      this.db.exec(`ALTER TABLE matches ADD COLUMN participant6 TEXT`);
+    }
+    if (matchCols.length && !matchCols.find(c => c.name === 'participant7')) {
+      this.db.exec(`ALTER TABLE matches ADD COLUMN participant7 TEXT`);
+    }
+    if (matchCols.length && !matchCols.find(c => c.name === 'participant8')) {
+      this.db.exec(`ALTER TABLE matches ADD COLUMN participant8 TEXT`);
+    }
 
     // Migrate: add new roster fields if missing
     const wrestlerCols = this.db.prepare(`PRAGMA table_info(wrestlers)`).all();
@@ -96,6 +109,10 @@ class DatabaseManager {
         participant2 TEXT,
         participant3 TEXT,
         participant4 TEXT,
+        participant5 TEXT,
+        participant6 TEXT,
+        participant7 TEXT,
+        participant8 TEXT,
         date DATETIME NOT NULL,
         result TEXT DEFAULT 'Pending',
         winner TEXT,
@@ -276,18 +293,18 @@ class DatabaseManager {
     ).all(limit);
   }
 
-  addMatch(show, type, category, participant1, participant2, participant3, participant4, date, result, winner, notes, championshipId, isImportant) {
+  addMatch(show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant) {
     const result_res = this.db.prepare(
-      `INSERT INTO matches (show, type, category, participant1, participant2, participant3, participant4, date, result, winner, notes, championshipId, isImportant)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(show, type, category, participant1, participant2, participant3, participant4, date, result, winner, notes, championshipId || null, isImportant ? 1 : 0);
+      `INSERT INTO matches (show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId || null, isImportant ? 1 : 0);
     return result_res.lastInsertRowid;
   }
 
-  updateMatch(id, show, type, category, participant1, participant2, participant3, participant4, date, result, winner, notes, championshipId, isImportant) {
+  updateMatch(id, show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant) {
     this.db.prepare(
-      `UPDATE matches SET show = ?, type = ?, category = ?, participant1 = ?, participant2 = ?, participant3 = ?, participant4 = ?, date = ?, result = ?, winner = ?, notes = ?, championshipId = ?, isImportant = ? WHERE id = ?`
-    ).run(show, type, category, participant1, participant2, participant3, participant4, date, result, winner, notes, championshipId || null, isImportant ? 1 : 0, id);
+      `UPDATE matches SET show = ?, type = ?, category = ?, participant1 = ?, participant2 = ?, participant3 = ?, participant4 = ?, participant5 = ?, participant6 = ?, participant7 = ?, participant8 = ?, date = ?, result = ?, winner = ?, notes = ?, championshipId = ?, isImportant = ? WHERE id = ?`
+    ).run(show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId || null, isImportant ? 1 : 0, id);
   }
 
   deleteMatch(id) {

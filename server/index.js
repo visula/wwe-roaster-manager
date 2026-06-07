@@ -89,17 +89,17 @@ app.get('/api/matches', (req, res) => {
 });
 
 app.post('/api/matches', (req, res) => {
-  const { show, type, category, participant1, participant2, participant3, participant4, date, result, winner, notes, championshipId, isImportant } = req.body;
+  const { show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant } = req.body;
   if (!show || !participant1) return res.status(400).json({ error: 'Show and at least one participant required' });
-  const id = db.addMatch(show, type || 'Singles', category || '', participant1, participant2, participant3, participant4, date || new Date().toISOString(), result || 'Pending', winner || null, notes || '', championshipId || null, isImportant || 0);
-  res.json({ id, show, type, category, participant1, participant2, participant3, participant4, date, result, winner, notes, championshipId, isImportant });
+  const id = db.addMatch(show, type || 'Singles', category || '', participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date || new Date().toISOString(), result || 'Pending', winner || null, notes || '', championshipId || null, isImportant || 0);
+  res.json({ id, show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant });
 });
 
 app.put('/api/matches/:id', (req, res) => {
   const { id } = req.params;
-  const { show, type, category, participant1, participant2, participant3, participant4, date, result, winner, notes, championshipId, isImportant } = req.body;
-  db.updateMatch(id, show, type, category, participant1, participant2, participant3, participant4, date, result, winner, notes, championshipId || null, isImportant || 0);
-  res.json({ id, show, type, category, participant1, participant2, participant3, participant4, date, result, winner, notes, championshipId, isImportant });
+  const { show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant } = req.body;
+  db.updateMatch(id, show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId || null, isImportant || 0);
+  res.json({ id, show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant });
 });
 
 app.delete('/api/matches/:id', (req, res) => {
