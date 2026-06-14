@@ -423,7 +423,8 @@
                         <tr>
                             <th data-table="roster" data-col="name">Name</th>
                             <th data-table="roster" data-col="show">Show</th>
-                            <th data-table="roster" data-col="division">Division</th>
+                            <th data-table="roster" data-col="gender">Gender</th>
+                            <th data-table="roster" data-col="overall">Overall</th>
                             <th data-table="roster" data-col="status">Status</th>
                             <th>Actions</th>
                         </tr>
@@ -690,13 +691,14 @@
                     <thead>
                         <tr>
                             <th>Team Name</th>
+                            <th>Show</th>
                             <th>Members</th>
                             <th>Size</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="teamsTable">
-                        <tr><td colspan="4" class="no-data">Loading teams...</td></tr>
+                        <tr><td colspan="5" class="no-data">Loading teams...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -760,6 +762,10 @@
                         <select id="mePool2" style="flex:1;min-width:140px;"><option value="">Show 2 (optional)</option></select>
                         <select id="mePool3" style="flex:1;min-width:140px;"><option value="">Show 3 (optional)</option></select>
                     </div>
+                </div>
+                <div class="form-group">
+                    <label>Match Limit for this Event</label>
+                    <input type="number" id="meMatchLimit" min="1" max="15" value="9" placeholder="e.g., 9 for WrestleMania">
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('createMainEventModal')">Cancel</button>
@@ -871,13 +877,22 @@
             </div>
             <form onsubmit="saveTeam(event)">
                 <input type="hidden" id="teamEditId">
-                <div class="form-group">
-                    <label>Team / Faction Name *</label>
-                    <input type="text" id="teamName" placeholder="e.g. Judgment Day" required>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Team / Faction Name *</label>
+                        <input type="text" id="teamName" placeholder="e.g. Judgment Day" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Show / Brand</label>
+                        <select id="teamShow">
+                            <option value="">All Shows</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="form-group">
-                    <label>Members (one per line)</label>
-                    <textarea id="teamMembers" rows="6" placeholder="Roman Reigns&#10;Solo Sikoa&#10;Jacob Fatu"></textarea>
+                    <label>Members</label>
+                    <div id="teamMembersContainer" style="display:flex;flex-direction:column;gap:8px;margin-top:8px;"></div>
+                    <button type="button" class="btn btn-secondary" style="margin-top:8px;" onclick="addTeamMemberSlot()">+ Add Member</button>
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('teamModal')">Cancel</button>
@@ -937,8 +952,14 @@
                         <select id="showEligibleShows" multiple style="height:120px"></select>
                     </div>
                     <div class="form-group">
-                        <label>Match Limit <small>(1–9)</small></label>
-                        <input type="number" id="showMatchLimit" min="1" max="9" value="9">
+                        <label>Match Limit <small>(e.g., 9 for major events)</small></label>
+                        <input type="number" id="showMatchLimit" min="1" max="15" value="9">
+                    </div>
+                </div>
+                <div id="weeklyShowFields" style="display:block;">
+                    <div class="form-group">
+                        <label>Match Limit per Episode <small>(leave blank for unlimited)</small></label>
+                        <input type="number" id="showMatchLimitWeekly" min="1" max="15" placeholder="e.g., 7 for RAW">
                     </div>
                 </div>
                 <div class="form-actions">
@@ -962,10 +983,24 @@
                         <input type="text" id="wrestlerName" required>
                     </div>
                     <div class="form-group">
-                        <label>Show *</label>
-                        <select id="wrestlerShow" required>
-                            <option value="">Select Show</option>
+                        <label>Show(s) *</label>
+                        <select id="wrestlerShow" required multiple size="4" style="height:auto;">
                         </select>
+                        <small style="color:var(--text-muted);font-size:0.75em;margin-top:4px;display:block;">Hold Ctrl (Cmd on Mac) to select multiple shows</small>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Gender</label>
+                        <select id="wrestlerGender">
+                            <option value="">Unspecified</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Overall Rating</label>
+                        <input type="number" id="wrestlerOverall" min="0" max="100" placeholder="0-100">
                     </div>
                 </div>
                 <div class="form-row">
@@ -1080,8 +1115,9 @@
                 </div>
                 <div class="form-group">
                     <label>Date *</label>
-                    <input type="datetime-local" id="matchDate" required>
+                    <input type="datetime-local" id="matchDate" required onchange="checkMatchLimit()">
                 </div>
+                <div id="matchLimitWarning" style="display:none;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);border-radius:6px;padding:10px 12px;margin-bottom:12px;color:#fbbf24;font-size:0.9em;"></div>
                 <div id="participantsGrid"></div>
                 <div id="crossShowNote" class="cross-show-note"></div>
                 <div class="form-group">
@@ -1356,10 +1392,11 @@
 
         // ==================== EXPORT / IMPORT CSV ====================
         function exportRosterCSV() {
-            const headers = 'id,name,show,division,status';
-            const rows = wrestlers.map(w =>
-                `${w.id},"${w.name}","${w.show}","${w.division}","${w.status}"`
-            );
+            const headers = 'id,name,shows,division,status';
+            const rows = wrestlers.map(w => {
+                const showsVal = (w.shows && w.shows.length > 0 ? w.shows : [w.show]).join('|');
+                return `${w.id},"${w.name}","${showsVal}","${w.division}","${w.status}"`;
+            });
             downloadCSV('roster-export.csv', [headers, ...rows].join('\n'));
         }
 
@@ -1461,107 +1498,384 @@
         }
 
         const DEFAULT_WRESTLERS = [
-            {name:'Abyss',show:'TNA',division:'Unassigned',status:'Active'},
-            {name:'Adam Cole',show:'AEW',division:'Unassigned',status:'Active'},
-            {name:'Adam Page',show:'AEW',division:'Unassigned',status:'Active'},
-            {name:'AJ Styles',show:'TNA',division:'Unassigned',status:'Active'},
-            {name:'Asuka',show:'RAW',division:"Women's",status:'Active'},
-            {name:'Austin Theory',show:'RAW',division:'Heavyweight',status:'Active'},
-            {name:'Axiom',show:'SmackDown',division:'Cruiserweight',status:'Active'},
-            {name:'Bayley',show:'RAW',division:"Women's",status:'Active'},
-            {name:'Becky Lynch',show:'RAW',division:"Women's",status:'Active'},
-            {name:'Bianca Belair',show:'SmackDown',division:"Women's",status:'Active'},
-            {name:'Bron Breakker',show:'RAW',division:'Heavyweight',status:'Active'},
-            {name:'Bronson Reed',show:'RAW',division:'Heavyweight',status:'Active'},
-            {name:'Bryan Danielson',show:'AEW',division:'Heavyweight',status:'Active'},
-            {name:'Candice LeRae',show:'SmackDown',division:"Women's",status:'Active'},
-            {name:'Carmelo Hayes',show:'SmackDown',division:'Heavyweight',status:'Active'},
-            {name:'Cash Wheeler',show:'AEW',division:'Tag Team',status:'Active'},
-            {name:'Charlotte Flair',show:'SmackDown',division:"Women's",status:'Active'},
-            {name:'Chelsea Green',show:'SmackDown',division:"Women's",status:'Active'},
-            {name:'Chris Jericho',show:'AEW',division:'Heavyweight',status:'Active'},
-            {name:'Christian Cage',show:'AEW',division:'Heavyweight',status:'Active'},
-            {name:'Claudio Castagnoli',show:'AEW',division:'Heavyweight',status:'Active'},
-            {name:'CM Punk',show:'RAW',division:'Heavyweight',status:'Active'},
-            {name:'Cody Rhodes',show:'SmackDown',division:'Heavyweight',status:'Active'},
-            {name:'Damian Priest',show:'SmackDown',division:'Heavyweight',status:'Active'},
-            {name:'Darby Allin',show:'AEW',division:'Heavyweight',status:'Active'},
-            {name:'Dax Harwood',show:'AEW',division:'Tag Team',status:'Active'},
-            {name:'Dexter Lumis',show:'SmackDown',division:'Heavyweight',status:'Active'},
-            {name:'Dirty Dominik Mysterio',show:'RAW',division:'Heavyweight',status:'Active'},
-            {name:'Drew McIntyre',show:'SmackDown',division:'Heavyweight',status:'Active'},
-            {name:'Erik',show:'RAW',division:'Tag Team',status:'Active'},
-            {name:'Ethan Page',show:'RAW',division:'Heavyweight',status:'Active'},
-            {name:'Finn Bálor',show:'RAW',division:'Heavyweight',status:'Active'},
-            {name:'Giulia',show:'SmackDown',division:"Women's",status:'Active'},
-            {name:'Gunther',show:'SmackDown',division:'Heavyweight',status:'Active'},
-            {name:'Hank Walker',show:'NXT',division:'Tag Team',status:'Active'},
-            {name:'Ivar',show:'RAW',division:'Tag Team',status:'Active'},
-            {name:'Ivy Nile',show:'RAW',division:"Women's",status:'Active'},
-            {name:'Iyo Sky',show:'RAW',division:"Women's",status:'Active'},
-            {name:'Izzi Dame',show:'NXT',division:"Women's",status:'Active'},
-            {name:'Jacob Fatu',show:'RAW',division:'Heavyweight',status:'Active'},
-            {name:'Jade Cargill',show:'SmackDown',division:"Women's",status:'Active'},
-            {name:'Jamie Hayter',show:'AEW',division:"Women's",status:'Active'},
-            {name:'Jay White',show:'AEW',division:'Heavyweight',status:'Active'},
-            {name:'JD McDonagh',show:'RAW',division:'Heavyweight',status:'Active'},
-            {name:'Jey Uso',show:'RAW',division:'Heavyweight',status:'Active'},
-            {name:'Jimmy Uso',show:'RAW',division:'Heavyweight',status:'Active'},
-            {name:'Joe Hendry',show:'TNA',division:'Heavyweight',status:'Active'},
-            {name:'Johnny Gargano',show:'SmackDown',division:'Heavyweight',status:'Active'},
-            {name:'Jon Moxley',show:'AEW',division:'Heavyweight',status:'Active'},
-            {name:'Jordynne Grace',show:'NXT',division:"Women's",status:'Active'},
-            {name:'Julius Creed',show:'RAW',division:'Heavyweight',status:'Active'},
-            {name:'Kairi Sane',show:'RAW',division:"Women's",status:'Active'},
-            {name:'Kenny Omega',show:'AEW',division:'Heavyweight',status:'Active'},
-            {name:'Kevin Owens',show:'SmackDown',division:'Heavyweight',status:'Active'},
-            {name:'Kofi Kingston',show:'RAW',division:'Heavyweight',status:'Active'},
-            {name:'Konosuke Takeshita',show:'AEW',division:'Heavyweight',status:'Active'},
-            {name:'Kurt Angle',show:'TNA',division:'Heavyweight',status:'Active'},
-            {name:'LA Knight',show:'RAW',division:'Heavyweight',status:'Active'},
-            {name:'Lexis King',show:'NXT',division:'Heavyweight',status:'Active'},
-            {name:'Liv Morgan',show:'RAW',division:"Women's",status:'Active'},
-            {name:'Logan Paul',show:'RAW',division:'Heavyweight',status:'Active'},
-            {name:'Lyra Valkyria',show:'RAW',division:"Women's",status:'Active'},
-            {name:'Mercedes Mone',show:'AEW',division:"Women's",status:'Active'},
-            {name:'MJF',show:'AEW',division:'Heavyweight',status:'Active'},
-            {name:'Naomi',show:'RAW',division:"Women's",status:'Active'},
-            {name:'Nathan Frazer',show:'SmackDown',division:'Cruiserweight',status:'Active'},
-            {name:'Nia Jax',show:'SmackDown',division:"Women's",status:'Active'},
-            {name:'Nic Nemeth',show:'TNA',division:'Heavyweight',status:'Active'},
-            {name:'Nick Jackson',show:'AEW',division:'Tag Team',status:'Active'},
-            {name:'Nikki Cross',show:'SmackDown',division:"Women's",status:'Active'},
-            {name:'Oba Femi',show:'RAW',division:'Heavyweight',status:'Active'},
-            {name:'Okada',show:'AEW',division:'Heavyweight',status:'Active'},
-            {name:'Orange Casidy',show:'AEW',division:'Heavyweight',status:'Active'},
-            {name:'Pac',show:'AEW',division:'Heavyweight',status:'Active'},
-            {name:'Penta',show:'RAW',division:'Heavyweight',status:'Active'},
-            {name:'R-Truth',show:'SmackDown',division:'Heavyweight',status:'Active'},
-            {name:'Randy Orton',show:'SmackDown',division:'Heavyweight',status:'Active'},
-            {name:'Raquel Rodriguez',show:'RAW',division:"Women's",status:'Active'},
-            {name:'Rey Mysterio',show:'RAW',division:'Cruiserweight',status:'Active'},
-            {name:'Rhea Ripley',show:'SmackDown',division:"Women's",status:'Active'},
-            {name:'Roman Reigns',show:'RAW',division:'Heavyweight',status:'Active'},
-            {name:'Roxanne Perez',show:'RAW',division:"Women's",status:'Active'},
-            {name:'Sami Zayn',show:'SmackDown',division:'Heavyweight',status:'Active'},
-            {name:'Santos Escobar',show:'SmackDown',division:'Heavyweight',status:'Active'},
-            {name:'Seth Rollins',show:'RAW',division:'Heavyweight',status:'Active'},
-            {name:'Shawn Spears',show:'NXT',division:'Heavyweight',status:'Active'},
-            {name:'Sheamus',show:'RAW',division:'Heavyweight',status:'Active'},
-            {name:'Shinsuke Nakamura',show:'SmackDown',division:'Heavyweight',status:'Active'},
-            {name:'Solo Sikoa',show:'SmackDown',division:'Heavyweight',status:'Active'},
-            {name:'Stephanie Vaquer',show:'RAW',division:"Women's",status:'Active'},
-            {name:'Swerve',show:'AEW',division:'Heavyweight',status:'Active'},
-            {name:'Tank Ledger',show:'NXT',division:'Tag Team',status:'Active'},
-            {name:'Tiffany Stratton',show:'SmackDown',division:"Women's",status:'Active'},
-            {name:'Toni Storm',show:'AEW',division:"Women's",status:'Active'},
-            {name:'Trick Williams',show:'SmackDown',division:'Heavyweight',status:'Active'},
-            {name:'Uncle Howdy',show:'SmackDown',division:'Heavyweight',status:'Active'},
-            {name:'Will Ospreay',show:'AEW',division:'Heavyweight',status:'Active'},
-            {name:'Xavier Woods',show:'RAW',division:'Heavyweight',status:'Active'},
-            {name:'AJ Styles',show:'TNA',division:'Heavyweight',status:'Active'},
-            {name:'Jeff Hardy',show:'TNA',division:'Heavyweight',status:'Active'},
-            {name:'Rob Van Dam',show:'TNA',division:'Heavyweight',status:'Active'},
+            {name:'Abyss',shows:['TNA'],gender:'Male',overall:85,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Adam Cole',shows:['AEW'],gender:'Male',overall:89,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Adam Page',shows:['AEW'],gender:'Male',overall:93,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Adam Pearce',shows:[],gender:'Male',overall:80,alignment:'Face',division:'Unassigned',status:'Active'},
+            {name:'Adelicious',shows:['AAA'],gender:'Female',overall:75,alignment:'',division:"Women's",status:'Active'},
+            {name:'Aerostar',shows:['AAA'],gender:'Male',overall:81,alignment:'Face',division:'Cruiserweight',status:'Active'},
+            {name:'AJ Lee',shows:['RAW'],gender:'Female',overall:87,alignment:'Face',division:"Women's",status:'Active'},
+            {name:'AJ Styles',shows:['TNA'],gender:'Male',overall:88,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Akane',shows:['TNA'],gender:'Male',overall:84,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Akira Tozawa',shows:['RAW'],gender:'Male',overall:68,alignment:'Face',division:'Cruiserweight',status:'Active'},
+            {name:'Alba Fyre',shows:['SmackDown'],gender:'Female',overall:77,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Alberto Del Rio',shows:['TNA'],gender:'Male',overall:91,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Aleister Black',shows:['AEW'],gender:'Male',overall:84,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Alex Shelley',shows:['SmackDown'],gender:'Male',overall:80,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Alexa Bliss',shows:['SmackDown'],gender:'Female',overall:87,alignment:'Face',division:"Women's",status:'Active'},
+            {name:'Amy Owel',shows:['TNA'],gender:'Female',overall:86,alignment:'',division:"Women's",status:'Active'},
+            {name:'Andrade El Idolo',shows:['AEW'],gender:'Male',overall:85,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Andre Bravo',shows:['TNA'],gender:'Male',overall:90,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Andre Chase',shows:['NXT'],gender:'Male',overall:73,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Andrea Cannon',shows:['TNA'],gender:'Female',overall:87,alignment:'',division:"Women's",status:'Active'},
+            {name:'Angel',shows:['AAA','SmackDown'],gender:'Male',overall:72,alignment:'Heel',division:'Unassigned',status:'Active'},
+            {name:'Angelo Dawkins',shows:['SmackDown'],gender:'Male',overall:78,alignment:'Tweener',division:'Tag Team',status:'Active'},
+            {name:'Apollo Crews',shows:['TNA'],gender:'Male',overall:70,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Arik',shows:['TNA'],gender:'Male',overall:85,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Asuka',shows:['RAW'],gender:'Female',overall:91,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Austin Theory',shows:['RAW'],gender:'Male',overall:82,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Ax (Demolition)',shows:[],gender:'Male',overall:88,alignment:'Heel',division:'Tag Team',status:'Active'},
+            {name:'Axiom',shows:['SmackDown'],gender:'Male',overall:75,alignment:'Face',division:'Cruiserweight',status:'Active'},
+            {name:'B-Fab',shows:['SmackDown'],gender:'Female',overall:67,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Bad Bunny',shows:['AAA'],gender:'Male',overall:76,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Bandido',shows:['AAA'],gender:'Male',overall:84,alignment:'Face',division:'Cruiserweight',status:'Active'},
+            {name:'Batista',shows:['RAW','SmackDown'],gender:'Male',overall:89,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Bayley',shows:['RAW','AAA'],gender:'Female',overall:89,alignment:'Tweener',division:"Women's",status:'Active'},
+            {name:'Becky Lynch',shows:['RAW'],gender:'Female',overall:94,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Berto',shows:['AAA','SmackDown'],gender:'Male',overall:72,alignment:'Heel',division:'Unassigned',status:'Active'},
+            {name:'Bianca Belair',shows:['SmackDown'],gender:'Female',overall:94,alignment:'Face',division:"Women's",status:'Active'},
+            {name:'Big Bill',shows:['AEW'],gender:'Male',overall:75,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Big E',shows:['RAW'],gender:'Male',overall:85,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Big Show',shows:['AEW'],gender:'Male',overall:81,alignment:'Neutral',division:'Heavyweight',status:'Active'},
+            {name:'Blake Monroe',shows:['NXT'],gender:'Female',overall:78,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Bobby',shows:['TNA'],gender:'Male',overall:76,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Bobby Ace',shows:['TNA'],gender:'Male',overall:58,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Bobby Fish',shows:['NXT'],gender:'Male',overall:84,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Bobby Lashley',shows:['AEW'],gender:'Male',overall:89,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Bobby Roode',shows:['NXT'],gender:'Male',overall:85,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Booker T',shows:['RAW','SmackDown'],gender:'Male',overall:85,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Bravo Americano',shows:['RAW','AAA'],gender:'Male',overall:76,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Bravoo',shows:['TNA'],gender:'Male',overall:100,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Bray Wyatt',shows:[],gender:'Male',overall:90,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Brock Lesnar',shows:['RAW','SmackDown'],gender:'Male',overall:94,alignment:'Tweener',division:'Heavyweight',status:'Active'},
+            {name:'Brody King',shows:['AEW'],gender:'Male',overall:88,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Bron Breakker',shows:['RAW'],gender:'Male',overall:90,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Bronson Reed',shows:['RAW'],gender:'Male',overall:88,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Brooks Jensen',shows:['NXT'],gender:'Male',overall:73,alignment:'Heel',division:'Tag Team',status:'Active'},
+            {name:'Brutus Creed',shows:['RAW','AAA'],gender:'Male',overall:77,alignment:'Heel',division:'Tag Team',status:'Active'},
+            {name:'Bryan Danielson',shows:['AEW'],gender:'Male',overall:95,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Bubba Ray Dudley',shows:['NXT'],gender:'Male',overall:85,alignment:'',division:'Tag Team',status:'Active'},
+            {name:'Buddy Matthews',shows:['AEW'],gender:'Male',overall:85,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Bull Nakano',shows:[],gender:'Female',overall:90,alignment:'',division:"Women's",status:'Active'},
+            {name:'Buzz',shows:['AEW'],gender:'Male',overall:94,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Candice LeRae',shows:['SmackDown'],gender:'Female',overall:73,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Carly Prime',shows:['TNA'],gender:'Female',overall:68,alignment:'',division:"Women's",status:'Active'},
+            {name:'Carmelo Hayes',shows:['SmackDown'],gender:'Male',overall:84,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Cash Wheeler',shows:['AEW'],gender:'Male',overall:86,alignment:'Face',division:'Tag Team',status:'Active'},
+            {name:'Cedric Alexander',shows:['NXT'],gender:'Male',overall:80,alignment:'',division:'Cruiserweight',status:'Active'},
+            {name:'Chad Gable',shows:['TNA'],gender:'Male',overall:81,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Channing Lorenzo',shows:['NXT'],gender:'Male',overall:74,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Charlie Dempsey',shows:['NXT'],gender:'Male',overall:75,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Charlotte Flair',shows:['SmackDown'],gender:'Female',overall:93,alignment:'Face',division:"Women's",status:'Active'},
+            {name:'Chase',shows:['TNA'],gender:'Male',overall:64,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Chelsea Green',shows:['SmackDown'],gender:'Female',overall:85,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Chiyoko Garcia',shows:['AEW'],gender:'Female',overall:90,alignment:'',division:"Women's",status:'Active'},
+            {name:'Chosen',shows:['TNA'],gender:'Male',overall:84,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Chris Jericho',shows:['AEW'],gender:'Male',overall:90,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Chris Sabin',shows:['SmackDown'],gender:'Male',overall:80,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Christian Cage',shows:['AEW'],gender:'Male',overall:87,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Claudio Castagnoli',shows:['AEW'],gender:'Male',overall:84,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'CM Punk',shows:['RAW'],gender:'Male',overall:94,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Cody Rhodes',shows:['SmackDown'],gender:'Male',overall:95,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Cole Quinn',shows:['TNA'],gender:'Male',overall:68,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Crush (Demolition)',shows:[],gender:'Male',overall:87,alignment:'Heel',division:'Tag Team',status:'Active'},
+            {name:'Cruz Del Toro',shows:['RAW','AAA'],gender:'Male',overall:73,alignment:'Face',division:'Cruiserweight',status:'Active'},
+            {name:'D-Von Dudley',shows:['NXT'],gender:'Male',overall:84,alignment:'',division:'Tag Team',status:'Active'},
+            {name:"D'Lo Brown",shows:[],gender:'Male',overall:83,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Dakota Kai',shows:['NXT'],gender:'Female',overall:80,alignment:'',division:"Women's",status:'Active'},
+            {name:'Damian Priest',shows:['SmackDown'],gender:'Male',overall:87,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Danhausen',shows:['RAW','AEW'],gender:'Male',overall:78,alignment:'Face',division:'Unassigned',status:'Active'},
+            {name:'Daniel Bryan',shows:['SmackDown'],gender:'Male',overall:92,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Darby Allin',shows:['AEW'],gender:'Male',overall:87,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'David Finlay',shows:['AEW'],gender:'Male',overall:86,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Dax Harwood',shows:['AEW'],gender:'Male',overall:86,alignment:'Face',division:'Tag Team',status:'Active'},
+            {name:'Death',shows:['NXT'],gender:'Male',overall:99,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Demon Finn Balor',shows:['SmackDown'],gender:'Male',overall:90,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Dexter Lumis',shows:['SmackDown'],gender:'Male',overall:82,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Dirty Dominik Mysterio',shows:['RAW','AAA'],gender:'Male',overall:87,alignment:'Tweener',division:'Heavyweight',status:'Active'},
+            {name:'Doink The Clown',shows:[],gender:'Male',overall:74,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Dr Darren',shows:['NXT'],gender:'Male',overall:85,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Dragon Lee',shows:['RAW','AAA'],gender:'Male',overall:79,alignment:'Face',division:'Cruiserweight',status:'Active'},
+            {name:'Dralistico',shows:['AAA'],gender:'Male',overall:82,alignment:'Face',division:'Cruiserweight',status:'Active'},
+            {name:'Drew McIntyre',shows:['SmackDown'],gender:'Male',overall:93,alignment:'Tweener',division:'Heavyweight',status:'Active'},
+            {name:'Dustin Rhodes',shows:['AEW'],gender:'Male',overall:86,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Eddie Kingston',shows:['TNA'],gender:'Male',overall:75,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Edge',shows:['AEW'],gender:'Male',overall:91,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'El Bravo',shows:['AAA'],gender:'Male',overall:85,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'El Grande Americano',shows:['RAW','AAA'],gender:'Male',overall:85,alignment:'Tweener',division:'Unassigned',status:'Active'},
+            {name:'El Hijo del Vikingo',shows:['TNA'],gender:'Male',overall:86,alignment:'',division:'Cruiserweight',status:'Active'},
+            {name:'El Mago Jr',shows:['TNA'],gender:'Male',overall:74,alignment:'',division:'Cruiserweight',status:'Active'},
+            {name:'EL Ordinario',shows:['TNA'],gender:'Male',overall:73,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'El Verdugo',shows:['AEW'],gender:'Male',overall:89,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Elayna Black',shows:['NXT'],gender:'Female',overall:79,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Elton Prince',shows:['NXT'],gender:'Male',overall:71,alignment:'Tweener',division:'Tag Team',status:'Active'},
+            {name:'Emily Ward',shows:['NXT'],gender:'Female',overall:85,alignment:'',division:"Women's",status:'Active'},
+            {name:'Enzo Amore',shows:['NXT'],gender:'Male',overall:74,alignment:'',division:'Cruiserweight',status:'Active'},
+            {name:'Eric Bischoff',shows:['NXT'],gender:'Male',overall:58,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Erick Rowan',shows:['SmackDown'],gender:'Male',overall:80,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Erik',shows:['RAW'],gender:'Male',overall:78,alignment:'Heel',division:'Tag Team',status:'Active'},
+            {name:'Ethan Page',shows:['RAW'],gender:'Male',overall:83,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Eve Torres',shows:['NXT'],gender:'Female',overall:85,alignment:'',division:"Women's",status:'Active'},
+            {name:'Evil',shows:['NXT','AEW'],gender:'Male',overall:84,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Fallon Henley',shows:['SmackDown'],gender:'Female',overall:78,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Finn Bálor',shows:['RAW'],gender:'Male',overall:88,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Flammer',shows:['TNA'],gender:'Female',overall:85,alignment:'',division:"Women's",status:'Active'},
+            {name:'Gabriel Slade',shows:['TNA'],gender:'Male',overall:83,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Galeno Del Tormento',shows:['AAA'],gender:'Male',overall:75,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Geneva Rose',shows:[],gender:'Female',overall:70,alignment:'',division:"Women's",status:'Active'},
+            {name:'Giant Gonzalez',shows:['NXT'],gender:'Male',overall:84,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Giulia',shows:['SmackDown'],gender:'Female',overall:86,alignment:'Tweener',division:"Women's",status:'Active'},
+            {name:'Goldberg',shows:['RAW','SmackDown'],gender:'Male',overall:90,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Golddust',shows:['TNA'],gender:'Male',overall:83,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Grayson Waller',shows:['RAW'],gender:'Male',overall:73,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Great Khali',shows:['NXT'],gender:'Male',overall:86,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Gunther',shows:['SmackDown'],gender:'Male',overall:93,alignment:'Tweener',division:'Heavyweight',status:'Active'},
+            {name:'Hank Walker',shows:['NXT'],gender:'Male',overall:77,alignment:'Face',division:'Tag Team',status:'Active'},
+            {name:'Hector Flores',shows:['NXT'],gender:'Male',overall:77,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Hijo Del Dr. Wagner Jr',shows:['AAA'],gender:'Male',overall:85,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Hikaru Shida',shows:['AEW'],gender:'Female',overall:92,alignment:'',division:"Women's",status:'Active'},
+            {name:'Hope Eternal',shows:['TNA'],gender:'Female',overall:94,alignment:'',division:"Women's",status:'Active'},
+            {name:'Ilja Dragunov',shows:['SmackDown'],gender:'Male',overall:85,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'IShowSpeed',shows:['RAW','SmackDown'],gender:'Male',overall:81,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Ivar',shows:['RAW'],gender:'Male',overall:79,alignment:'Heel',division:'Tag Team',status:'Active'},
+            {name:'Ivy Nile',shows:['RAW'],gender:'Female',overall:76,alignment:'Tweener',division:"Women's",status:'Active'},
+            {name:'Iyo Sky',shows:['RAW'],gender:'Female',overall:93,alignment:'Tweener',division:"Women's",status:'Active'},
+            {name:'Izzi Dame',shows:['NXT'],gender:'Female',overall:76,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Jack Swagger',shows:['TNA'],gender:'Male',overall:81,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Jacob Fatu',shows:['RAW'],gender:'Male',overall:88,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Jacy Jayne',shows:['SmackDown'],gender:'Female',overall:80,alignment:'Tweener',division:"Women's",status:'Active'},
+            {name:'Jade Cargill',shows:['SmackDown'],gender:'Female',overall:88,alignment:'Tweener',division:"Women's",status:'Active'},
+            {name:'Jaida Parker',shows:['NXT'],gender:'Female',overall:77,alignment:'Face',division:"Women's",status:'Active'},
+            {name:'Jake Bone Jones',shows:['NXT'],gender:'Male',overall:95,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Jake Paul',shows:['AAA'],gender:'Male',overall:86,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Jamal',shows:[],gender:'Male',overall:82,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Jamie Hayter',shows:['AEW'],gender:'Female',overall:88,alignment:'Face',division:"Women's",status:'Active'},
+            {name:'Jay White',shows:['AEW'],gender:'Male',overall:89,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Jazmyn Nyx',shows:['SmackDown'],gender:'Female',overall:72,alignment:'',division:"Women's",status:'Active'},
+            {name:'JBL',shows:[],gender:'Male',overall:89,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'JC Mateo',shows:['SmackDown'],gender:'Male',overall:82,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'JD McDonagh',shows:['RAW'],gender:'Male',overall:79,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:"Je'Von Evans",shows:['RAW'],gender:'Male',overall:78,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Jee Yung',shows:['TNA'],gender:'Female',overall:97,alignment:'',division:"Women's",status:'Active'},
+            {name:'Jeff Hardy',shows:['NXT'],gender:'Male',overall:93,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Jessika Carr',shows:['NXT'],gender:'Female',overall:82,alignment:'',division:"Women's",status:'Active'},
+            {name:'Jey Uso',shows:['RAW'],gender:'Male',overall:91,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Jhon Reaper',shows:['NXT'],gender:'Male',overall:85,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Jimmy Uso',shows:['RAW'],gender:'Male',overall:86,alignment:'Face',division:'Tag Team',status:'Active'},
+            {name:'Joaquin Wilde',shows:['RAW','AAA'],gender:'Male',overall:72,alignment:'Face',division:'Cruiserweight',status:'Active'},
+            {name:'Jodie Garcia',shows:['NXT'],gender:'Female',overall:87,alignment:'',division:"Women's",status:'Active'},
+            {name:'Joe Gacy',shows:['SmackDown'],gender:'Male',overall:82,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Joe Hendry',shows:['RAW','TNA'],gender:'Male',overall:80,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'John Cena',shows:['AAA','SmackDown'],gender:'Male',overall:97,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'John Morrison',shows:['AEW'],gender:'Male',overall:85,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Johnny Gargano',shows:['SmackDown'],gender:'Male',overall:76,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Jon Moxley',shows:['AEW'],gender:'Male',overall:91,alignment:'Neutral',division:'Heavyweight',status:'Active'},
+            {name:'Jordynne Grace',shows:['NXT'],gender:'Female',overall:81,alignment:'Face',division:"Women's",status:'Active'},
+            {name:'Josh Briggs',shows:['NXT'],gender:'Male',overall:74,alignment:'Heel',division:'Tag Team',status:'Active'},
+            {name:'Josie Jane',shows:['NXT'],gender:'Female',overall:74,alignment:'',division:"Women's",status:'Active'},
+            {name:'Juice Robinson',shows:['AEW'],gender:'Male',overall:91,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Julia Hart',shows:['AEW'],gender:'Female',overall:82,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Julianne Meadow',shows:['SmackDown'],gender:'Female',overall:86,alignment:'',division:"Women's",status:'Active'},
+            {name:'Julius Creed',shows:['RAW','AAA'],gender:'Male',overall:78,alignment:'Heel',division:'Tag Team',status:'Active'},
+            {name:'Junkyard Dog',shows:[],gender:'Male',overall:84,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Justine',shows:[],gender:'Female',overall:80,alignment:'',division:"Women's",status:'Active'},
+            {name:'Juventud Guerrera',shows:['AEW'],gender:'Male',overall:85,alignment:'',division:'Cruiserweight',status:'Active'},
+            {name:'Kairi Sane',shows:['RAW'],gender:'Female',overall:84,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Kalisto',shows:['AAA'],gender:'Male',overall:81,alignment:'Face',division:'Cruiserweight',status:'Active'},
+            {name:'Kane',shows:[],gender:'Male',overall:79,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Karmen Petrovic',shows:['NXT'],gender:'Female',overall:75,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Kathryn Wolf',shows:['TNA'],gender:'Female',overall:75,alignment:'',division:"Women's",status:'Active'},
+            {name:'Kaven Wright',shows:['NXT'],gender:'Male',overall:92,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Kelani Jordan',shows:['NXT'],gender:'Female',overall:79,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Kelly Kelly',shows:['SmackDown'],gender:'Female',overall:82,alignment:'Face',division:"Women's",status:'Active'},
+            {name:'Ken Shamrock',shows:[],gender:'Male',overall:86,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Kenny Omega',shows:['AEW'],gender:'Male',overall:93,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Kevin Owens',shows:['SmackDown'],gender:'Male',overall:87,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Kiana James',shows:['SmackDown'],gender:'Female',overall:73,alignment:'Tweener',division:"Women's",status:'Active'},
+            {name:'Killer Kross',shows:['TNA'],gender:'Male',overall:84,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Kit Wilson',shows:['SmackDown'],gender:'Male',overall:74,alignment:'Heel',division:'Tag Team',status:'Active'},
+            {name:'Kofi Kingston',shows:['RAW'],gender:'Male',overall:83,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Konosuke Takeshita',shows:['AEW'],gender:'Male',overall:87,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Kris Statlander',shows:['TNA'],gender:'Female',overall:85,alignment:'Face',division:"Women's",status:'Active'},
+            {name:'Kujo',shows:['NXT'],gender:'Female',overall:92,alignment:'',division:"Women's",status:'Active'},
+            {name:'Kurt Angle',shows:['NXT'],gender:'Male',overall:89,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Kyle Fletcher',shows:['AEW'],gender:'Male',overall:82,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:"Kyle O'Reilly",shows:['SmackDown'],gender:'Male',overall:84,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'La Cangrejita Loca',shows:['TNA'],gender:'Female',overall:64,alignment:'',division:"Women's",status:'Active'},
+            {name:'La Hiedra',shows:['AAA'],gender:'Female',overall:83,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'LA Knight',shows:['RAW'],gender:'Male',overall:89,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'La Park',shows:['AAA'],gender:'Male',overall:86,alignment:'Neutral',division:'Heavyweight',status:'Active'},
+            {name:'La Parka',shows:['AAA'],gender:'Male',overall:86,alignment:'Neutral',division:'Heavyweight',status:'Active'},
+            {name:'Lady Hiedra',shows:['TNA'],gender:'Female',overall:90,alignment:'',division:"Women's",status:'Active'},
+            {name:'Lady Maravilla',shows:['AAA'],gender:'Female',overall:81,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Lady Marvilla',shows:['TNA'],gender:'Female',overall:75,alignment:'',division:"Women's",status:'Active'},
+            {name:'Laredo Kid',shows:['AAA'],gender:'Male',overall:82,alignment:'Face',division:'Cruiserweight',status:'Active'},
+            {name:'Lash Legend',shows:['SmackDown'],gender:'Female',overall:81,alignment:'Tweener',division:"Women's",status:'Active'},
+            {name:'Latt Jackson (Matt)',shows:['AEW'],gender:'Male',overall:88,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Leo the Lion',shows:['NXT'],gender:'Male',overall:82,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Lexis King',shows:['NXT'],gender:'Male',overall:74,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Lince Dorado',shows:['AAA'],gender:'Male',overall:79,alignment:'Face',division:'Cruiserweight',status:'Active'},
+            {name:'Lita',shows:['SmackDown'],gender:'Female',overall:87,alignment:'',division:"Women's",status:'Active'},
+            {name:'Liv Morgan',shows:['RAW'],gender:'Female',overall:92,alignment:'Tweener',division:"Women's",status:'Active'},
+            {name:'LJ',shows:['SmackDown'],gender:'Female',overall:88,alignment:'',division:"Women's",status:'Active'},
+            {name:'Lock',shows:['SmackDown'],gender:'Male',overall:88,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Logan Paul',shows:['RAW'],gender:'Male',overall:90,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Lola Vice',shows:['NXT'],gender:'Female',overall:78,alignment:'Face',division:"Women's",status:'Active'},
+            {name:'Luchasaurus',shows:['SmackDown'],gender:'Male',overall:89,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Ludwig Kaiser',shows:['RAW'],gender:'Male',overall:77,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Lyra Valkyria',shows:['RAW'],gender:'Female',overall:84,alignment:'Tweener',division:"Women's",status:'Active'},
+            {name:'Marina Shafir',shows:['AEW'],gender:'Female',overall:80,alignment:'',division:"Women's",status:'Active'},
+            {name:'Mark Henry',shows:['SmackDown'],gender:'Male',overall:92,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Maryse',shows:['SmackDown'],gender:'Female',overall:79,alignment:'',division:"Women's",status:'Active'},
+            {name:'Mason Rook',shows:['TNA'],gender:'Male',overall:83,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Matt Cardona',shows:['TNA','SmackDown'],gender:'Male',overall:85,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Max Roode',shows:['NXT'],gender:'Male',overall:85,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Maxxine Dupri',shows:['RAW'],gender:'Female',overall:78,alignment:'Tweener',division:"Women's",status:'Active'},
+            {name:'Megan Bayne',shows:['AEW'],gender:'Female',overall:84,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Mercedes Mone',shows:['AEW'],gender:'Female',overall:91,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Michelle McCool',shows:[],gender:'Female',overall:85,alignment:'',division:"Women's",status:'Active'},
+            {name:'Michin',shows:['SmackDown'],gender:'Female',overall:82,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Mike Savage',shows:['SmackDown'],gender:'Male',overall:91,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Mike Tyson',shows:['AAA'],gender:'Male',overall:87,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Mil Muertes',shows:['AAA'],gender:'Male',overall:85,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Mio Jogasaki',shows:['NXT'],gender:'Female',overall:72,alignment:'',division:"Women's",status:'Active'},
+            {name:'Mistico',shows:['AAA'],gender:'Male',overall:86,alignment:'Face',division:'Cruiserweight',status:'Active'},
+            {name:'Miz',shows:['SmackDown'],gender:'Male',overall:80,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'MJF',shows:['AEW'],gender:'Male',overall:91,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Montez Ford',shows:['SmackDown'],gender:'Male',overall:80,alignment:'Tweener',division:'Tag Team',status:'Active'},
+            {name:'Mosh',shows:[],gender:'Male',overall:76,alignment:'',division:'Tag Team',status:'Active'},
+            {name:'Mr. Iguana',shows:['TNA'],gender:'Male',overall:81,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'MVP',shows:['SmackDown'],gender:'Male',overall:82,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Myles Borne',shows:['NXT'],gender:'Male',overall:75,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Naomi',shows:['RAW'],gender:'Female',overall:92,alignment:'Tweener',division:"Women's",status:'Active'},
+            {name:'Natalya',shows:['RAW'],gender:'Female',overall:86,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Nathan Frazer',shows:['SmackDown'],gender:'Male',overall:76,alignment:'Face',division:'Cruiserweight',status:'Active'},
+            {name:'New Jack',shows:[],gender:'Male',overall:86,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Nia Jax',shows:['SmackDown'],gender:'Female',overall:88,alignment:'Tweener',division:"Women's",status:'Active'},
+            {name:'Nic Nemeth',shows:['TNA'],gender:'Male',overall:87,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Nick Aldis',shows:['TNA','SmackDown'],gender:'Male',overall:80,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Nick Jackson',shows:['AEW'],gender:'Male',overall:88,alignment:'Heel',division:'Tag Team',status:'Active'},
+            {name:'Nikki Bella',shows:['RAW'],gender:'Female',overall:88,alignment:'Tweener',division:"Women's",status:'Active'},
+            {name:'Nikki Cross',shows:['SmackDown'],gender:'Female',overall:73,alignment:'Face',division:"Women's",status:'Active'},
+            {name:'Nikkita Lyons',shows:['NXT'],gender:'Female',overall:73,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Niko Vance',shows:['TNA'],gender:'Male',overall:76,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Noam Dar',shows:['NXT'],gender:'Male',overall:76,alignment:'Tweener',division:'Cruiserweight',status:'Active'},
+            {name:'Oba Femi',shows:['RAW'],gender:'Male',overall:85,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Octagon Jr',shows:['AAA'],gender:'Male',overall:83,alignment:'Face',division:'Cruiserweight',status:'Active'},
+            {name:'Odyssey Rift',shows:['SmackDown'],gender:'Female',overall:74,alignment:'',division:"Women's",status:'Active'},
+            {name:'Okada',shows:['AEW'],gender:'Male',overall:94,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Omos',shows:['RAW'],gender:'Male',overall:80,alignment:'Tweener',division:'Heavyweight',status:'Active'},
+            {name:'Orange Casidy',shows:['AEW'],gender:'Male',overall:90,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Original El Grande Americano',shows:['RAW','AAA'],gender:'Male',overall:85,alignment:'Tweener',division:'Unassigned',status:'Active'},
+            {name:'Otis',shows:['RAW'],gender:'Male',overall:75,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Pac',shows:['AEW'],gender:'Male',overall:86,alignment:'Neutral',division:'Heavyweight',status:'Active'},
+            {name:'Paige (Saraya)',shows:['SmackDown'],gender:'Female',overall:88,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Paragon Jay Pierce',shows:['NXT'],gender:'Male',overall:86,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Pat McAfee',shows:[],gender:'Male',overall:80,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Penta',shows:['RAW','AAA'],gender:'Male',overall:84,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Perry Saturn',shows:['AEW'],gender:'Male',overall:83,alignment:'Neutral',division:'Heavyweight',status:'Active'},
+            {name:'Pete Dunne',shows:['TNA'],gender:'Male',overall:76,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Piper Niven',shows:['SmackDown'],gender:'Female',overall:79,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Psycho Clown',shows:['TNA'],gender:'Male',overall:84,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Psyco Sally',shows:['TNA'],gender:'Female',overall:67,alignment:'',division:"Women's",status:'Active'},
+            {name:'R-Truth',shows:['SmackDown'],gender:'Male',overall:80,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Raiden Yuri',shows:['NXT'],gender:'Female',overall:86,alignment:'',division:"Women's",status:'Active'},
+            {name:'Randy Orton',shows:['SmackDown'],gender:'Male',overall:92,alignment:'Tweener',division:'Heavyweight',status:'Active'},
+            {name:'Raquel Rodriguez',shows:['RAW'],gender:'Female',overall:86,alignment:'Tweener',division:"Women's",status:'Active'},
+            {name:'Raven',shows:['AEW'],gender:'Male',overall:86,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Ravo Americano',shows:['RAW','AAA'],gender:'Male',overall:76,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Rayo Fantasma',shows:['AAA'],gender:'Male',overall:75,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Red',shows:['NXT'],gender:'Female',overall:93,alignment:'',division:"Women's",status:'Active'},
+            {name:'Reina Dorada',shows:['AAA'],gender:'Female',overall:80,alignment:'Face',division:"Women's",status:'Active'},
+            {name:'Rey Fenix',shows:['AAA','SmackDown'],gender:'Male',overall:78,alignment:'Face',division:'Cruiserweight',status:'Active'},
+            {name:'Rey Mysterio',shows:['RAW','AAA'],gender:'Male',overall:85,alignment:'Face',division:'Cruiserweight',status:'Active'},
+            {name:'Rhea Ripley',shows:['SmackDown'],gender:'Female',overall:96,alignment:'Face',division:"Women's",status:'Active'},
+            {name:'Ricky Saints',shows:['NXT'],gender:'Male',overall:81,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Ricky Sosa',shows:['TNA'],gender:'Male',overall:83,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Ricochet',shows:['AEW'],gender:'Male',overall:85,alignment:'Face',division:'Cruiserweight',status:'Active'},
+            {name:'Ridge Holland',shows:['NXT'],gender:'Male',overall:74,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Rikishi',shows:[],gender:'Male',overall:81,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Road Dogg',shows:['NXT'],gender:'Male',overall:80,alignment:'',division:'Tag Team',status:'Active'},
+            {name:'Rob Van Dam',shows:['NXT'],gender:'Male',overall:90,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Rock',shows:['AAA','SmackDown'],gender:'Male',overall:95,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Roddy Piper',shows:[],gender:'Male',overall:84,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Roman Reigns',shows:['RAW'],gender:'Male',overall:95,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Ronda Rousey',shows:['NXT'],gender:'Female',overall:94,alignment:'',division:"Women's",status:'Active'},
+            {name:'Rosey',shows:[],gender:'Male',overall:80,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Roxanne Perez',shows:['RAW'],gender:'Female',overall:85,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Royce Keys',shows:['TNA','SmackDown'],gender:'Male',overall:80,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Rusev',shows:['RAW'],gender:'Male',overall:83,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Ryback',shows:['AEW'],gender:'Male',overall:84,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Sami Zayn',shows:['SmackDown'],gender:'Male',overall:89,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Samoa Joe',shows:['AEW'],gender:'Male',overall:90,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Sandman',shows:[],gender:'Male',overall:86,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Santos Escobar',shows:['SmackDown'],gender:'Male',overall:76,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Saya Kamitani',shows:['TNA'],gender:'Female',overall:86,alignment:'Face',division:"Women's",status:'Active'},
+            {name:'Scott Hall',shows:[],gender:'Male',overall:87,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Seth Rollins',shows:['RAW'],gender:'Male',overall:94,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Shane Talyor',shows:['AEW'],gender:'Male',overall:81,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Shawn Michaels',shows:['RAW','NXT','SmackDown'],gender:'Male',overall:87,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Shawn Spears',shows:['NXT'],gender:'Male',overall:75,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Sheamus',shows:['RAW'],gender:'Male',overall:86,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Shinsuke Nakamura',shows:['SmackDown'],gender:'Male',overall:86,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Shyvana',shows:['NXT'],gender:'Female',overall:89,alignment:'',division:"Women's",status:'Active'},
+            {name:'Sin Cara',shows:['AAA'],gender:'Male',overall:81,alignment:'Face',division:'Cruiserweight',status:'Active'},
+            {name:'Skye Blue',shows:['SmackDown'],gender:'Female',overall:90,alignment:'',division:"Women's",status:'Active'},
+            {name:'Slade',shows:[],gender:'Male',overall:92,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Smash (Demolition)',shows:[],gender:'Male',overall:88,alignment:'Heel',division:'Tag Team',status:'Active'},
+            {name:'Sol Ruca',shows:['RAW'],gender:'Female',overall:77,alignment:'Face',division:"Women's",status:'Active'},
+            {name:'Solo Sikoa',shows:['SmackDown'],gender:'Male',overall:85,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Sombra Del Rayo',shows:['AAA'],gender:'Male',overall:89,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Stacy Keibler',shows:['NXT'],gender:'Female',overall:75,alignment:'',division:"Women's",status:'Active'},
+            {name:'Stephanie McMahon',shows:['RAW','SmackDown'],gender:'Female',overall:75,alignment:'',division:"Women's",status:'Active'},
+            {name:'Stephanie Vaquer',shows:['RAW'],gender:'Female',overall:92,alignment:'Tweener',division:"Women's",status:'Active'},
+            {name:'Stone Cold Steve Austin',shows:[],gender:'Male',overall:97,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Sting',shows:['AEW'],gender:'Male',overall:92,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Suicide',shows:['AAA'],gender:'Male',overall:79,alignment:'Neutral',division:'Heavyweight',status:'Active'},
+            {name:'Swerve',shows:['AEW'],gender:'Male',overall:91,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Talla Tonga',shows:['SmackDown'],gender:'Male',overall:77,alignment:'Heel',division:'Tag Team',status:'Active'},
+            {name:'Tama Tonga',shows:['SmackDown'],gender:'Male',overall:83,alignment:'Heel',division:'Tag Team',status:'Active'},
+            {name:'Tank Ledger',shows:['NXT'],gender:'Male',overall:77,alignment:'Face',division:'Tag Team',status:'Active'},
+            {name:'Tatum Paxley',shows:['NXT'],gender:'Female',overall:75,alignment:'Face',division:"Women's",status:'Active'},
+            {name:'Tavion Heights',shows:['NXT'],gender:'Male',overall:76,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Tavish',shows:['NXT'],gender:'Male',overall:76,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Terry Funk',shows:[],gender:'Male',overall:87,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'The Fiend',shows:[],gender:'Male',overall:92,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'The Fiend Bray Wyatt',shows:[],gender:'Male',overall:92,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'The Miedo',shows:['NXT'],gender:'Male',overall:89,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Thea Hail',shows:['NXT'],gender:'Female',overall:75,alignment:'Face',division:"Women's",status:'Active'},
+            {name:'Thrasher',shows:[],gender:'Male',overall:76,alignment:'',division:'Tag Team',status:'Active'},
+            {name:'Tiffany Stratton',shows:['SmackDown'],gender:'Female',overall:91,alignment:'Face',division:"Women's",status:'Active'},
+            {name:'Tommaso Ciampa',shows:['AEW'],gender:'Male',overall:77,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Tonga Loa',shows:['SmackDown'],gender:'Male',overall:79,alignment:'Heel',division:'Tag Team',status:'Active'},
+            {name:'Toni Storm',shows:['SmackDown'],gender:'Female',overall:95,alignment:'',division:"Women's",status:'Active'},
+            {name:"Tony D'Angelo",shows:['NXT'],gender:'Male',overall:79,alignment:'Tweener',division:'Heavyweight',status:'Active'},
+            {name:'TRE',shows:['TNA'],gender:'Male',overall:86,alignment:'',division:'Unassigned',status:'Active'},
+            {name:'Trick Williams',shows:['SmackDown'],gender:'Male',overall:84,alignment:'Heel',division:'Heavyweight',status:'Active'},
+            {name:'Triple H',shows:['RAW','SmackDown'],gender:'Male',overall:91,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Trish Stratus',shows:[],gender:'Female',overall:89,alignment:'',division:"Women's",status:'Active'},
+            {name:'Tyler Bate',shows:['NXT'],gender:'Male',overall:76,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Tyler Breeze',shows:['NXT'],gender:'Male',overall:75,alignment:'Tweener',division:'Heavyweight',status:'Active'},
+            {name:'Tyson Kidd',shows:['TNA'],gender:'Male',overall:82,alignment:'',division:'Tag Team',status:'Active'},
+            {name:'Uncle Howdy',shows:['SmackDown'],gender:'Male',overall:87,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Undertaker',shows:[],gender:'Male',overall:96,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Utami',shows:['NXT'],gender:'Female',overall:93,alignment:'',division:"Women's",status:'Active'},
+            {name:'Vader',shows:[],gender:'Male',overall:87,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Venom Miss',shows:['AEW'],gender:'Female',overall:98,alignment:'',division:"Women's",status:'Active'},
+            {name:'Victoria',shows:[],gender:'Female',overall:89,alignment:'',division:"Women's",status:'Active'},
+            {name:'Wade Barrett',shows:['SmackDown'],gender:'Male',overall:85,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Wendy Choo',shows:['NXT'],gender:'Female',overall:72,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Wheeler Yuta',shows:['AEW'],gender:'Male',overall:82,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Will Ospreay',shows:['AEW'],gender:'Male',overall:88,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'William Regal',shows:['TNA'],gender:'Male',overall:76,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Wren Sinclair',shows:['NXT'],gender:'Female',overall:74,alignment:'Face',division:"Women's",status:'Active'},
+            {name:'Xavier Woods',shows:['RAW'],gender:'Male',overall:82,alignment:'Heel',division:'Tag Team',status:'Active'},
+            {name:'Yoshiki Inamura',shows:['NXT'],gender:'Male',overall:75,alignment:'Face',division:'Heavyweight',status:'Active'},
+            {name:'Zaria',shows:['NXT'],gender:'Female',overall:75,alignment:'Tweener',division:"Women's",status:'Active'},
+            {name:'Zelina Vega',shows:['AEW'],gender:'Female',overall:83,alignment:'Tweener',division:"Women's",status:'Active'},
+            {name:'Zoey Stark',shows:['NXT'],gender:'Female',overall:80,alignment:'Heel',division:"Women's",status:'Active'},
+            {name:'Evil',shows:['NXT','AEW'],gender:'Male',overall:84,alignment:'',division:'Heavyweight',status:'Active'},
+            {name:'Mason Rook',shows:['TNA'],gender:'Male',overall:83,alignment:'',division:'Heavyweight',status:'Active'},
         ];
 
         const DEFAULT_CHAMPIONSHIPS = [
@@ -1598,10 +1912,10 @@
             const btn = event.target;
             btn.disabled = true;
             btn.textContent = 'Importing...';
-            const existing = new Set(wrestlers.map(w => `${w.name}|${w.show}`));
+            const existing = new Set(wrestlers.map(w => w.name));
             let added = 0, skipped = 0;
             for (const w of DEFAULT_WRESTLERS) {
-                if (existing.has(`${w.name}|${w.show}`)) { skipped++; continue; }
+                if (existing.has(w.name)) { skipped++; continue; }
                 await fetch(`${API}/wrestlers`, {
                     method: 'POST',
                     headers: {'Content-Type':'application/json'},
@@ -1771,16 +2085,24 @@
             allShowSelects.forEach(id => {
                 const select = document.getElementById(id);
                 if (!select) return;
-                const currentValue = select.value;
+                const isMultiple = select.multiple;
                 const isFilter = id.endsWith('Filter');
-                select.innerHTML = isFilter ? '<option value="">All Shows</option>' : '<option value="">Select Show</option>';
+                // Preserve current selection(s)
+                const prevSelected = isMultiple
+                    ? Array.from(select.selectedOptions).map(o => o.value)
+                    : [select.value];
+                select.innerHTML = (!isMultiple && !isFilter) ? '<option value="">Select Show</option>' : (isFilter ? '<option value="">All Shows</option>' : '');
                 shows.forEach(show => {
                     const option = document.createElement('option');
                     option.value = show.name;
                     option.textContent = show.name;
                     select.appendChild(option);
                 });
-                select.value = currentValue;
+                if (isMultiple) {
+                    Array.from(select.options).forEach(o => { o.selected = prevSelected.includes(o.value); });
+                } else {
+                    select.value = prevSelected[0];
+                }
             });
 
             scheduledSelects.forEach(id => {
@@ -1817,7 +2139,14 @@
         function updateShowTypeFields() {
             const showType = document.getElementById('showType').value;
             const specialFields = document.getElementById('specialShowFields');
-            specialFields.style.display = showType === 'Special' ? 'block' : 'none';
+            const weeklyFields = document.getElementById('weeklyShowFields');
+            if (showType === 'Special') {
+                specialFields.style.display = 'block';
+                weeklyFields.style.display = 'none';
+            } else {
+                specialFields.style.display = 'none';
+                weeklyFields.style.display = 'block';
+            }
         }
 
         function displayShows() {
@@ -1827,7 +2156,7 @@
                     <td>${s.abbreviation}</td>
                     <td>${s.day ? `<span class="badge badge-success">${s.day}</span>` : '<span class="badge badge-warning">Not scheduled</span>'}</td>
                     <td>${s.showType === 'Special' ? '<span class="badge badge-info">Special</span>' : '<span class="badge badge-success">Weekly</span>'}</td>
-                    <td>${s.showType === 'Special' ? (s.matchLimit || 9) : '-'}</td>
+                    <td>${s.matchLimit ? `<span class="badge badge-info">${s.matchLimit}</span>` : '<span class="badge badge-warning">Unlimited</span>'}</td>
                     <td><div class="action-buttons">
                         <button class="btn btn-secondary" onclick="editShow('${s.id}')">Edit</button>
                         <button class="btn btn-danger" onclick="deleteShow('${s.id}')">Delete</button>
@@ -1848,6 +2177,7 @@
             document.getElementById('showType').value = 'Weekly';
             document.getElementById('showDay').value = '';
             document.getElementById('showMatchLimit').value = 9;
+            document.getElementById('showMatchLimitWeekly').value = '';
             populateShowEligibleOptions();
             updateShowTypeFields();
             openModal('showModal');
@@ -1863,7 +2193,13 @@
             document.getElementById('showAbbr').value = show.abbreviation;
             document.getElementById('showType').value = show.showType || 'Weekly';
             document.getElementById('showDay').value = show.day || '';
-            document.getElementById('showMatchLimit').value = show.matchLimit || 9;
+            if (show.showType === 'Special') {
+                document.getElementById('showMatchLimit').value = show.matchLimit || 9;
+                document.getElementById('showMatchLimitWeekly').value = '';
+            } else {
+                document.getElementById('showMatchLimit').value = 9;
+                document.getElementById('showMatchLimitWeekly').value = show.matchLimit || '';
+            }
             populateShowEligibleOptions(show.eligibleShows ? show.eligibleShows.split(',').map(v => v.trim()).filter(Boolean) : []);
             updateShowTypeFields();
             openModal('showModal');
@@ -1876,8 +2212,15 @@
             const abbreviation = document.getElementById('showAbbr').value.trim().toUpperCase();
             const showType = document.getElementById('showType').value;
             const day = document.getElementById('showDay').value;
-            const matchLimit = document.getElementById('showMatchLimit').value;
             const eligibleShows = Array.from(document.getElementById('showEligibleShows').selectedOptions).map(opt => opt.value);
+            
+            let matchLimit = null;
+            if (showType === 'Special') {
+                matchLimit = document.getElementById('showMatchLimit').value || 9;
+            } else {
+                matchLimit = document.getElementById('showMatchLimitWeekly').value || null;
+            }
+            
             const method = id ? 'PUT' : 'POST';
             const url = id ? `${API}/shows/${id}` : `${API}/shows`;
             try {
@@ -1889,7 +2232,7 @@
                         abbreviation,
                         showType,
                         day: day || null,
-                        matchLimit: showType === 'Special' ? matchLimit : null,
+                        matchLimit: matchLimit ? parseInt(matchLimit) : null,
                         eligibleShows: showType === 'Special' ? eligibleShows : []
                     })
                 });
@@ -1921,13 +2264,7 @@
             if (!championshipId || !winner || winner === 'Vacant') return;
             const champ = championships.find(c => c.id == championshipId);
             if (!champ || champ.holder === winner) return;
-            // Record history entry for previous holder
-            await fetch(`${API}/championship-history`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ championshipId, holder: champ.holder, dateCaptured: matchDate || new Date().toISOString(), notes: 'Title change' })
-            });
-            // Update current holder
+            // Update current holder (handles both single names and team names "Name1 & Name2")
             await fetch(`${API}/championships/${championshipId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -1960,6 +2297,7 @@
             const html = allTeams.length > 0
                 ? allTeams.map(t => `<tr>
                     <td><strong>${t.name}</strong></td>
+                    <td>${t.show ? `<span class="badge badge-info">${t.show}</span>` : '<span class="badge badge-warning">All Shows</span>'}</td>
                     <td>${t.members.join(', ')}</td>
                     <td><span class="badge badge-info">${t.members.length}</span></td>
                     <td><div class="action-buttons">
@@ -1967,7 +2305,7 @@
                         <button class="btn btn-danger" onclick="deleteTeam(${t.id})">Delete</button>
                     </div></td>
                 </tr>`).join('')
-                : '<tr><td colspan="4" class="no-data">No custom teams yet. Add teams above or use the built-in defaults.</td></tr>';
+                : '<tr><td colspan="5" class="no-data">No custom teams yet. Add teams above or use the built-in defaults.</td></tr>';
             document.getElementById('teamsTable').innerHTML = html;
         }
 
@@ -1975,8 +2313,60 @@
             document.getElementById('teamEditId').value = '';
             document.getElementById('teamModalTitle').textContent = 'Add Team / Faction';
             document.getElementById('teamName').value = '';
-            document.getElementById('teamMembers').value = '';
+            populateTeamShowSelect();
+            document.getElementById('teamShow').value = '';
+            buildTeamMemberSlots([]);
             openModal('teamModal');
+        }
+
+        function populateTeamShowSelect() {
+            const sel = document.getElementById('teamShow');
+            const cur = sel.value;
+            sel.innerHTML = '<option value="">All Shows</option>';
+            shows.forEach(s => { const o = document.createElement('option'); o.value = s.name; o.textContent = s.name; sel.appendChild(o); });
+            if (cur) sel.value = cur;
+        }
+
+        function buildTeamMemberSlots(members) {
+            const container = document.getElementById('teamMembersContainer');
+            container.innerHTML = '';
+            if (members.length === 0) members = [''];
+            members.forEach((m, i) => {
+                const div = document.createElement('div');
+                div.className = 'form-row';
+                div.innerHTML = `<select class="teamMemberSelect" style="flex:1;" onchange="onTeamShowFilterChange()">
+                    <option value="">Select Wrestler</option>
+                    ${wrestlers.map(w => `<option value="${w.name}">${w.name} (${w.show})</option>`).join('')}
+                </select>
+                <button type="button" class="btn btn-danger" style="padding:6px 12px;margin-left:8px;" onclick="removeTeamMemberSlot(this)">✕</button>`;
+                container.appendChild(div);
+                if (m) div.querySelector('.teamMemberSelect').value = m;
+            });
+        }
+
+        function onTeamShowFilterChange() {
+            const showFilter = document.getElementById('teamShow').value;
+            const selects = document.querySelectorAll('.teamMemberSelect');
+            selects.forEach(sel => {
+                const cur = sel.value;
+                sel.innerHTML = '<option value="">Select Wrestler</option>';
+                const pool = showFilter ? wrestlers.filter(w => w.show === showFilter) : wrestlers;
+                pool.forEach(w => { const o = document.createElement('option'); o.value = w.name; o.textContent = `${w.name} (${w.show})`; sel.appendChild(o); });
+                if (cur && pool.find(w => w.name === cur)) sel.value = cur;
+            });
+        }
+
+        function addTeamMemberSlot() {
+            buildTeamMemberSlots([...Array.from(document.querySelectorAll('.teamMemberSelect')).map(s => s.value), '']);
+            onTeamShowFilterChange();
+        }
+
+        function removeTeamMemberSlot(btn) {
+            const members = Array.from(document.querySelectorAll('.teamMemberSelect')).map(s => s.value).filter(Boolean);
+            const idx = Array.from(btn.parentElement.parentElement.children).indexOf(btn.parentElement);
+            members.splice(idx, 1);
+            buildTeamMemberSlots(members.length > 0 ? members : ['']);
+            onTeamShowFilterChange();
         }
 
         function editTeam(id) {
@@ -1985,7 +2375,10 @@
             document.getElementById('teamEditId').value = id;
             document.getElementById('teamModalTitle').textContent = 'Edit Team / Faction';
             document.getElementById('teamName').value = t.name;
-            document.getElementById('teamMembers').value = t.members.join('\n');
+            populateTeamShowSelect();
+            document.getElementById('teamShow').value = t.show || '';
+            buildTeamMemberSlots(t.members);
+            onTeamShowFilterChange();
             openModal('teamModal');
         }
 
@@ -1993,11 +2386,13 @@
             e.preventDefault();
             const id = document.getElementById('teamEditId').value;
             const name = document.getElementById('teamName').value.trim();
-            const members = document.getElementById('teamMembers').value.split('\n').map(s => s.trim()).filter(Boolean);
+            const show = document.getElementById('teamShow').value || null;
+            const members = Array.from(document.querySelectorAll('.teamMemberSelect')).map(s => s.value).filter(Boolean);
+            if (members.length === 0) return alert('Add at least one team member');
             const method = id ? 'PUT' : 'POST';
             const url = id ? `${API}/teams/${id}` : `${API}/teams`;
             try {
-                const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name, members }) });
+                const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name, show, members }) });
                 if (res.ok) { closeModal('teamModal'); await loadTeams(); }
                 else { const e = await res.json(); alert(e.error || 'Error saving team'); }
             } catch(err) { alert('Error saving team'); }
@@ -2059,11 +2454,19 @@
 
         function displayRoster(data) {
             const html = data.length > 0 
-                ? data.map(w => `
+                ? data.map(w => {
+                    const showBadges = (w.shows&&w.shows.length?w.shows:(w.show?[w.show]:[])).map(s => 
+                        `<span class="badge badge-info" style="margin:2px;">${s}</span>`
+                    ).join('');
+                    const overallBadge = w.overall 
+                        ? `<span class="badge" style="background:${getOverallColor(w.overall)};color:#fff;font-weight:bold;">${w.overall}</span>` 
+                        : '-';
+                    return `
                     <tr>
                         <td><strong>${w.name}</strong></td>
-                        <td>${w.show}</td>
-                        <td><span class="badge badge-info">${w.division}</span></td>
+                        <td>${showBadges}</td>
+                        <td>${w.gender ? `<span class="badge badge-info">${w.gender}</span>` : '-'}</td>
+                        <td>${overallBadge}</td>
                         <td><span class="badge ${w.status === 'Active' ? 'badge-success' : 'badge-warning'}">${w.status}</span></td>
                         <td>
                             <div class="action-buttons">
@@ -2072,19 +2475,31 @@
                             </div>
                         </td>
                     </tr>
-                `).join('')
-                : '<tr><td colspan="5" class="no-data">No wrestlers added yet</td></tr>';
+                `;
+                }).join('')
+                : '<tr><td colspan="6" class="no-data">No wrestlers added yet</td></tr>';
             document.getElementById('rosterTable').innerHTML = html;
+        }
+
+        function getOverallColor(overall) {
+            if (overall >= 95) return '#d4af37'; // Gold
+            if (overall >= 90) return '#c9302c'; // Red
+            if (overall >= 85) return '#ec971f'; // Orange
+            if (overall >= 80) return '#5bc0de'; // Blue
+            if (overall >= 75) return '#5cb85c'; // Green
+            if (overall >= 70) return '#777'; // Gray
+            return '#555'; // Dark gray
         }
 
         function filterRoster() {
             const show = document.getElementById('rosterShowFilter').value;
             const search = document.getElementById('rosterSearch').value.toLowerCase();
             
-            const filtered = wrestlers.filter(w => 
-                (!show || w.show === show) &&
-                (w.name.toLowerCase().includes(search) || w.division.toLowerCase().includes(search))
-            );
+            const filtered = wrestlers.filter(w => {
+                const wrestlerShows = w.shows || [w.show];
+                return (!show || wrestlerShows.includes(show)) &&
+                    (w.name.toLowerCase().includes(search) || w.division.toLowerCase().includes(search));
+            });
             
             displayRoster(filtered);
         }
@@ -2269,6 +2684,8 @@
             document.querySelector('#wrestlerModal .modal-header h2').textContent = 'Add Wrestler';
             document.getElementById('wrestlerName').value = '';
             document.getElementById('wrestlerShow').selectedIndex = 0;
+            document.getElementById('wrestlerGender').value = '';
+            document.getElementById('wrestlerOverall').value = '';
             document.getElementById('wrestlerDivision').value = 'Unassigned';
             document.getElementById('wrestlerStatus').value = 'Active';
             document.getElementById('wrestlerImage').value = '';
@@ -2281,7 +2698,13 @@
             editingWrestlerId = id;
             document.querySelector('#wrestlerModal .modal-header h2').textContent = 'Edit Wrestler';
             document.getElementById('wrestlerName').value = w.name;
-            document.getElementById('wrestlerShow').value = w.show;
+            // Select multiple shows
+            const select = document.getElementById('wrestlerShow');
+            Array.from(select.options).forEach(opt => {
+                opt.selected = (w.shows || [w.show]).includes(opt.value);
+            });
+            document.getElementById('wrestlerGender').value = w.gender || '';
+            document.getElementById('wrestlerOverall').value = w.overall || '';
             document.getElementById('wrestlerDivision').value = w.division;
             document.getElementById('wrestlerStatus').value = w.status;
             document.getElementById('wrestlerImage').value = w.imageUrl || '';
@@ -2291,12 +2714,18 @@
         async function saveWrestler(e) {
             e.preventDefault();
             const name = document.getElementById('wrestlerName').value;
-            const show = document.getElementById('wrestlerShow').value;
+            const showSelect = document.getElementById('wrestlerShow');
+            const shows = Array.from(showSelect.selectedOptions).map(opt => opt.value);
+            const gender = document.getElementById('wrestlerGender').value || '';
+            const overallValue = document.getElementById('wrestlerOverall').value;
+            const overall = overallValue ? parseInt(overallValue) : null;
             const division = document.getElementById('wrestlerDivision').value;
             const status = document.getElementById('wrestlerStatus').value;
-            const imageUrl = document.getElementById('wrestlerImage').value;
+            const imageUrl = document.getElementById('wrestlerImage').value || '';
+            const alignment = ''; // Default empty
+            const titles = ''; // Default empty
 
-            if (!show) return alert('Please select a show.');
+            if (shows.length === 0) return alert('Please select at least one show.');
             const isEdit = !!editingWrestlerId;
             const url = isEdit ? `${API}/wrestlers/${editingWrestlerId}` : `${API}/wrestlers`;
             const method = isEdit ? 'PUT' : 'POST';
@@ -2305,18 +2734,34 @@
                 const res = await fetch(url, {
                     method,
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, show, division, status, imageUrl })
+                    body: JSON.stringify({ name, shows, gender, overall, division, status, imageUrl, alignment, titles })
                 });
                 if (res.ok) {
+                    const savedWrestler = await res.json();
                     closeModal('wrestlerModal');
-                    loadRoster();
-                    alert(isEdit ? 'Wrestler updated successfully!' : 'Wrestler added successfully!');
+                    
+                    // Update wrestlers array
+                    if (isEdit) {
+                        const index = wrestlers.findIndex(w => w.id === editingWrestlerId);
+                        if (index !== -1) wrestlers[index] = savedWrestler;
+                    } else {
+                        wrestlers.push(savedWrestler);
+                    }
+                    
+                    // Re-display roster with current filter
+                    filterRoster();
+                    
+                    // Update other dropdowns that use wrestlers
+                    populateChampionshipHolders('');
+                    populateTransferWrestlers('');
                 } else {
-                    alert('Error saving wrestler');
+                    const errorData = await res.json();
+                    console.error('Save error:', errorData);
+                    alert('Error saving wrestler: ' + (errorData.error || 'Unknown error'));
                 }
             } catch (err) {
                 console.error('Error:', err);
-                alert('Error saving wrestler');
+                alert('Error saving wrestler: ' + err.message);
             }
         }
 
@@ -2354,11 +2799,14 @@
                 const poolMatch = (m.notes||'').match(/\[POOLS:([^\]]+)\]/);
                 const pools = poolMatch ? poolMatch[1].split(',') : [];
                 populateMEHeaderShowSelects([m.show, pools[0]||'', pools[1]||'', pools[2]||'']);
+                const limitMatch = (m.notes||'').match(/\[LIMIT:(\d+)\]/);
+                el('meMatchLimit').value = limitMatch ? limitMatch[1] : 9;
             } else {
                 el('meHeaderId').value = '';
                 el('createMainEventTitle').textContent = 'Create Main Event';
                 el('meHeaderName').value = '';
                 el('meHeaderDate').value = '';
+                el('meMatchLimit').value = 9;
                 populateMEHeaderShowSelects();
             }
             openModal('createMainEventModal');
@@ -2380,11 +2828,12 @@
             const name = document.getElementById('meHeaderName').value.trim();
             const show = document.getElementById('meHeaderShow').value;
             const date = document.getElementById('meHeaderDate').value;
+            const matchLimit = document.getElementById('meMatchLimit').value || 9;
             const p1 = document.getElementById('mePool1').value;
             const p2 = document.getElementById('mePool2').value;
             const p3 = document.getElementById('mePool3').value;
             const pools = [p1,p2,p3].filter(Boolean);
-            const notes = `[MEEVENT][MENAME:${name}][POOLS:${pools.join(',')}]`;
+            const notes = `[MEEVENT][MENAME:${name}][POOLS:${pools.join(',')}][LIMIT:${matchLimit}]`;
             // Save to matches table (legacy, keeps [MEEVENT] tag for display)
             const url = id ? `${API}/matches/${id}` : `${API}/matches`;
             const method = id ? 'PUT' : 'POST';
@@ -2482,21 +2931,29 @@
             const selectedShow = showFilter ? showFilter.value : '';
             const pools = poolTag ? poolTag.split(',').filter(Boolean) : [];
             let pool = selectedShow
-                ? wrestlers.filter(w => w.show === selectedShow)
-                : (pools.length > 0 ? wrestlers.filter(w => pools.includes(w.show)) : wrestlers);
+                ? wrestlers.filter(w => {
+                    const wrestlerShows = w.shows || [w.show];
+                    return wrestlerShows.includes(selectedShow);
+                })
+                : (pools.length > 0 ? wrestlers.filter(w => {
+                    const wrestlerShows = w.shows || [w.show];
+                    return wrestlerShows.some(ws => pools.includes(ws));
+                }) : wrestlers);
             if (isWomens) pool = pool.filter(w => w.division === "Women's" || (w.gender && w.gender.toLowerCase() === 'female'));
 
             const grid = document.getElementById('meMatchParticipantsGrid');
             grid.innerHTML = '';
 
-            // Team auto-fill for ME tag matches
             const type = document.getElementById('meMatchType').value;
+            const teamStructure = MATCH_TEAM_STRUCTURE[type];
+            
+            // Team auto-fill for ME tag matches
             const isTagType = ['Two on Two','Two on Two Mixed Tag','Two on Two Tornado Tag','Three on Three','Three on Three Tornado Tag','Four on Four','Triple Threat Tornado Tag','4-Way Tornado Tag'].includes(type);
             if (isTagType) {
                 const teams = TEAMS.filter(t => t.members.some(m => pool.find(w => w.name === m)));
                 if (teams.length > 0) {
                     const teamsHtml = `<div class="form-group" style="background:rgba(204,0,0,0.07);border:1px solid rgba(204,0,0,0.25);border-radius:6px;padding:10px 14px;margin-bottom:12px;">
-                        <label>🏷️ Quick Team Select</label>
+                        <label>🏷️ Quick Team Select (optional - auto-fills participants)</label>
                         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
                             ${teams.map((t,i) => `<button type="button" class="btn btn-secondary" style="font-size:0.8em;padding:5px 12px;" onclick="autoFillMETeam(${i}, '${type}', ${count}, '${poolTag}')">` + t.name + `</button>`).join('')}
                         </div>
@@ -2506,16 +2963,50 @@
                 }
             }
 
-            for (let i = 0; i < count; i += 2) {
-                const row = document.createElement('div'); row.className = 'form-row';
-                for (let j = i; j < Math.min(i+2, count); j++) {
-                    const num = j+1;
-                    row.innerHTML += `<div class="form-group"><label>${num===1?'Participant 1 *':'Participant '+num}</label>
-                        <select id="meMP${num}" ${num===1?'required':''}><option value="">Select Superstar</option>
-                        ${pool.map(w=>`<option value="${w.name}">${w.name} (${w.show})</option>`).join('')}</select></div>`;
+            // Render participants with team grouping if applicable
+            if (teamStructure) {
+                const { teams, membersPerTeam } = teamStructure;
+                let slotIndex = 0;
+                
+                for (let teamIdx = 0; teamIdx < teams; teamIdx++) {
+                    const teamSize = Array.isArray(membersPerTeam) ? membersPerTeam[teamIdx] : membersPerTeam;
+                    const teamLabel = teams === 2 ? (teamIdx === 0 ? 'Team A' : 'Team B') : `Team ${teamIdx + 1}`;
+                    
+                    // Team header
+                    const headerDiv = document.createElement('div');
+                    headerDiv.style.cssText = 'background:rgba(204,0,0,0.1);border-left:3px solid var(--red);padding:8px 12px;margin:12px 0 8px 0;border-radius:4px;';
+                    headerDiv.innerHTML = `<strong style="color:#fff;font-size:0.9em;text-transform:uppercase;letter-spacing:1px;">${teamLabel}</strong>`;
+                    grid.appendChild(headerDiv);
+                    
+                    // Team members in rows of 2
+                    for (let i = 0; i < teamSize; i += 2) {
+                        const row = document.createElement('div');
+                        row.className = 'form-row';
+                        for (let j = i; j < Math.min(i + 2, teamSize); j++) {
+                            slotIndex++;
+                            const required = slotIndex === 1 ? 'required' : '';
+                            const label = `Member ${j + 1}${slotIndex === 1 ? ' *' : ''}`;
+                            row.innerHTML += `<div class="form-group"><label>${label}</label>
+                                <select id="meMP${slotIndex}" ${required}><option value="">Select Superstar</option>
+                                ${pool.map(w=>`<option value="${w.name}">${w.name} (${w.show})</option>`).join('')}</select></div>`;
+                        }
+                        if (teamSize % 2 !== 0 && i + 2 > teamSize) row.innerHTML += '<div class="form-group"></div>';
+                        grid.appendChild(row);
+                    }
                 }
-                if (count%2!==0 && i+2>count) row.innerHTML+='<div class="form-group"></div>';
-                grid.appendChild(row);
+            } else {
+                // Regular match - render in rows of 2
+                for (let i = 0; i < count; i += 2) {
+                    const row = document.createElement('div'); row.className = 'form-row';
+                    for (let j = i; j < Math.min(i+2, count); j++) {
+                        const num = j+1;
+                        row.innerHTML += `<div class="form-group"><label>${num===1?'Participant 1 *':'Participant '+num}</label>
+                            <select id="meMP${num}" ${num===1?'required':''}><option value="">Select Superstar</option>
+                            ${pool.map(w=>`<option value="${w.name}">${w.name} (${w.show})</option>`).join('')}</select></div>`;
+                    }
+                    if (count%2!==0 && i+2>count) row.innerHTML+='<div class="form-group"></div>';
+                    grid.appendChild(row);
+                }
             }
         }
 
@@ -2529,7 +3020,14 @@
             const showFilter = document.getElementById('meMatchShowFilter');
             const selectedShow = showFilter ? showFilter.value : '';
             const pools = poolTag ? poolTag.split(',').filter(Boolean) : [];
-            const pool = selectedShow ? wrestlers.filter(w => w.show === selectedShow) : wrestlers.filter(w => !pools.length || pools.includes(w.show));
+            const pool = selectedShow ? wrestlers.filter(w => {
+                const wrestlerShows = w.shows || [w.show];
+                return wrestlerShows.includes(selectedShow);
+            }) : wrestlers.filter(w => {
+                if (!pools.length) return true;
+                const wrestlerShows = w.shows || [w.show];
+                return wrestlerShows.some(ws => pools.includes(ws));
+            });
             const slotsPerTeam = { 'Two on Two': 2,'Two on Two Mixed Tag': 2,'Two on Two Tornado Tag': 2,'Three on Three': 3,'Three on Three Tornado Tag': 3,'Four on Four': 4,'Triple Threat Tornado Tag': 2,'4-Way Tornado Tag': 2 };
             const teamSize = slotsPerTeam[type] || 2;
             let startSlot = _meTeamFillSlot;
@@ -2600,17 +3098,40 @@
             const holder = selectedOption.dataset.holder;
             const champName = selectedOption.textContent.toLowerCase();
             const isWomens = WOMENS_KEYWORDS.some(kw => champName.includes(kw));
+            const isTagTitle = champName.includes('tag team') || champName.includes('tag');
             const type = document.getElementById('meMatchType').value;
             const poolTag = document.getElementById('meMatchPoolTag').value;
 
-            if (isWomens) {
+            // Auto-switch to tag match if tag championship selected
+            if (isTagTitle && type === 'One vs One') {
+                document.getElementById('meMatchType').value = 'Two on Two';
+                buildMEMatchSlots(4, poolTag, isWomens);
+            } else if (isWomens) {
                 buildMEMatchSlots(ME_MATCH_SLOTS[type] || 2, poolTag, true);
             }
 
+            // Auto-fill champion(s)
             if (holder && holder !== 'Vacant') {
                 setTimeout(() => {
-                    const p1 = document.getElementById('meMP1');
-                    if (p1) for (let i = 0; i < p1.options.length; i++) { if (p1.options[i].value === holder) { p1.value = holder; break; } }
+                    if (holder.includes(' & ')) {
+                        // Tag team champions - split and fill first 2 slots
+                        const members = holder.split(' & ');
+                        members.forEach((name, idx) => {
+                            const slot = document.getElementById(`meMP${idx + 1}`);
+                            if (slot) {
+                                for (let i = 0; i < slot.options.length; i++) {
+                                    if (slot.options[i].value === name.trim()) {
+                                        slot.value = name.trim();
+                                        break;
+                                    }
+                                }
+                            }
+                        });
+                    } else {
+                        // Single champion
+                        const p1 = document.getElementById('meMP1');
+                        if (p1) for (let i = 0; i < p1.options.length; i++) { if (p1.options[i].value === holder) { p1.value = holder; break; } }
+                    }
                 }, 0);
             }
         }
@@ -2618,13 +3139,28 @@
         function onMEMatchResultChange() {
             const result = document.getElementById('meMatchResult').value;
             const sel = document.getElementById('meMatchWinner');
+            const type = document.getElementById('meMatchType').value;
+            
             if (result==='Completed') {
-                const type = document.getElementById('meMatchType').value;
                 const count = ME_MATCH_SLOTS[type]||2;
                 const parts = [];
                 for(let i=1;i<=count;i++){ const el=document.getElementById(`meMP${i}`); if(el?.value) parts.push(el.value); }
                 sel.innerHTML='<option value="">No Winner Yet</option>';
-                parts.forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); });
+                
+                const teamStructure = MATCH_TEAM_STRUCTURE[type];
+                if (teamStructure) {
+                    // Tag team match - show teams as winners
+                    const teams = getWinningTeamMembers(type, parts);
+                    teams.forEach(team => {
+                        const opt = document.createElement('option');
+                        opt.value = team.members.join(' & ');
+                        opt.textContent = `${team.label}: ${team.members.join(' & ')}`;
+                        sel.appendChild(opt);
+                    });
+                } else {
+                    // Regular match - show individual participants
+                    parts.forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); });
+                }
             } else { sel.innerHTML='<option value="">No Winner Yet</option>'; }
         }
 
@@ -2672,15 +3208,10 @@
                 const notes = m.notes || '';
                 const isEvent = notes.includes('[MEEVENT]');
                 const isArchived = notes.includes('[ARCHIVED]');
-                
-                // Apply archive filter
                 let passArchiveFilter = true;
                 if (archiveF === 'active') passArchiveFilter = !isArchived;
                 else if (archiveF === 'archived') passArchiveFilter = isArchived;
-                
-                return isEvent && passArchiveFilter &&
-                    (!showF || m.show===showF) && 
-                    (!statusF || m.result===statusF);
+                return isEvent && passArchiveFilter && (!showF || m.show===showF) && (!statusF || m.result===statusF);
             });
             
             const container = document.getElementById('mainEventsContainer');
@@ -2694,50 +3225,25 @@
                 const evName = nameMatch ? nameMatch[1] : 'Main Event';
                 const poolMatch = (ev.notes||'').match(/\[POOLS:([^\]]+)\]/);
                 const poolTag = poolMatch ? poolMatch[1] : '';
+                const limitMatch = (ev.notes||'').match(/\[LIMIT:(\d+)\]/);
+                const matchLimit = limitMatch ? parseInt(limitMatch[1]) : null;
                 const allPools = [ev.show, ...poolTag.split(',').filter(Boolean)].filter((v,i,a)=>v&&a.indexOf(v)===i);
                 const poolTagFull = allPools.join(',');
                 const evMatches = data.filter(m => (m.notes||'').includes(`[MEMATCH:${ev.id}]`));
                 const safeName = evName.replace(/'/g,"\\'");
-                
-                // Determine if event is completed (all matches completed)
                 const allCompleted = evMatches.length > 0 && evMatches.every(m => m.result === 'Completed');
                 const statusBadge = allCompleted ? '<span class="badge badge-success" style="margin-left:10px;">Completed</span>' : '<span class="badge badge-warning" style="margin-left:10px;">Upcoming</span>';
-                
+                const limitBadge = matchLimit ? `<span class="badge badge-info" style="margin-left:10px;">${evMatches.length}/${matchLimit} matches</span>` : '';
                 const matchRows = evMatches.length > 0 ? evMatches.map(m => {
                     const champ = m.championshipId ? championships.find(c=>c.id===m.championshipId) : null;
                     const catBadge = m.category ? `<span class="badge badge-info" style="font-size:0.7em;margin-right:5px;">${m.category}</span>` : '';
                     const participants = [m.participant1,m.participant2,m.participant3,m.participant4,m.participant5,m.participant6,m.participant7,m.participant8].filter(Boolean).join(' <span style="color:var(--red)">vs</span> ');
-                    return `<tr>
-                        <td>${catBadge}<strong>${m.type}</strong></td>
-                        <td>${participants}</td>
-                        <td>${champ?`<span class="badge badge-gold" style="background:#3d2a00;color:#fbbf24;border:1px solid #92400e;">${champ.name}</span>`:'-'}</td>
-                        <td><span class="badge ${m.result==='Pending'?'badge-warning':'badge-success'}">${m.result}</span></td>
-                        <td>${m.winner ? `<strong>${m.winner}</strong>` : '-'}</td>
-                        <td><div class="action-buttons">
-                            <button class="btn btn-secondary" style="padding:6px 12px;font-size:0.8em;" onclick="openMEAddMatchModal(${ev.id},'${safeName}','${poolTagFull}',${m.id})">Edit</button>
-                            <button class="btn btn-danger" style="padding:6px 12px;font-size:0.8em;" onclick="deleteMatch(${m.id})">Delete</button>
-                        </div></td></tr>`;
+                    return `<tr><td>${catBadge}<strong>${m.type}</strong></td><td>${participants}</td><td>${champ?`<span class="badge badge-gold" style="background:#3d2a00;color:#fbbf24;border:1px solid #92400e;">${champ.name}</span>`:'-'}</td><td><span class="badge ${m.result==='Pending'?'badge-warning':'badge-success'}">${m.result}</span></td><td>${m.winner ? `<strong>${m.winner}</strong>` : '-'}</td><td><div class="action-buttons"><button class="btn btn-secondary" style="padding:6px 12px;font-size:0.8em;" onclick="openMEAddMatchModal(${ev.id},'${safeName}','${poolTagFull}',${m.id})">Edit</button><button class="btn btn-danger" style="padding:6px 12px;font-size:0.8em;" onclick="deleteMatch(${m.id})">Delete</button></div></td></tr>`;
                 }).join('') : `<tr><td colspan="6" class="no-data">No matches added yet.</td></tr>`;
                 const poolBadges = allPools.map(s=>`<span class="pool-badge">${s}</span>`).join('');
-                return `<div class="me-event-card">
-                    <div class="me-event-header">
-                        <div>
-                            <span class="me-event-title">${evName}</span>${statusBadge}
-                            ${poolBadges}
-                            <div class="me-event-meta" style="margin-top:4px;">${new Date(ev.date).toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'})}</div>
-                        </div>
-                        <div class="action-buttons">
-                            <button class="btn btn-primary" style="padding:7px 14px;font-size:0.83em;" onclick="openMEAddMatchModal(${ev.id},'${safeName}','${poolTagFull}',null)">+ Add Match</button>
-                            <button class="btn btn-secondary" style="padding:7px 14px;font-size:0.83em;" onclick="openCreateMainEventModal(${ev.id})">Edit</button>
-                            ${allCompleted ? `<button class="btn btn-gold" style="padding:7px 14px;font-size:0.83em;" onclick="archiveMainEvent(${ev.id})">Archive</button>` : ''}
-                            <button class="btn btn-danger" style="padding:7px 14px;font-size:0.83em;" onclick="deleteMainEvent(${ev.id})">Delete</button>
-                        </div>
-                    </div>
-                    <div class="me-event-body">
-                        <div class="table-container" style="margin:0;">
-                        <table><thead><tr><th>Type</th><th>Participants</th><th>Championship</th><th>Status</th><th>Winner</th><th>Actions</th></tr></thead>
-                        <tbody>${matchRows}</tbody></table></div>
-                    </div></div>`;
+                const canAddMatch = !matchLimit || evMatches.length < matchLimit;
+                const addMatchBtn = canAddMatch ? `<button class="btn btn-primary" style="padding:7px 14px;font-size:0.83em;" onclick="openMEAddMatchModal(${ev.id},'${safeName}','${poolTagFull}',null)">+ Add Match</button>` : `<button class="btn btn-secondary" style="padding:7px 14px;font-size:0.83em;" disabled title="Match limit reached">+ Add Match (Limit Reached)</button>`;
+                return `<div class="me-event-card"><div class="me-event-header"><div><span class="me-event-title">${evName}</span>${statusBadge}${limitBadge}${poolBadges}<div class="me-event-meta" style="margin-top:4px;">${new Date(ev.date).toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'})}</div></div><div class="action-buttons">${addMatchBtn}<button class="btn btn-secondary" style="padding:7px 14px;font-size:0.83em;" onclick="openCreateMainEventModal(${ev.id})">Edit</button>${allCompleted ? `<button class="btn btn-gold" style="padding:7px 14px;font-size:0.83em;" onclick="archiveMainEvent(${ev.id})">Archive</button>` : ''}<button class="btn btn-danger" style="padding:7px 14px;font-size:0.83em;" onclick="deleteMainEvent(${ev.id})">Delete</button></div></div><div class="me-event-body"><div class="table-container" style="margin:0;"><table><thead><tr><th>Type</th><th>Participants</th><th>Championship</th><th>Status</th><th>Winner</th><th>Actions</th></tr></thead><tbody>${matchRows}</tbody></table></div></div></div>`;
             }).join('');
         }
 
@@ -2814,6 +3320,22 @@
             'Battle Royal': 4
         };
 
+        // Team structure for match types (how many teams and members per team)
+        const MATCH_TEAM_STRUCTURE = {
+            'Two on Two': { teams: 2, membersPerTeam: 2 },
+            'Two on Two Mixed Tag': { teams: 2, membersPerTeam: 2 },
+            'Two on Two Tornado Tag': { teams: 2, membersPerTeam: 2 },
+            'Three on Three': { teams: 2, membersPerTeam: 3 },
+            'Three on Three Tornado Tag': { teams: 2, membersPerTeam: 3 },
+            'Four on Four': { teams: 2, membersPerTeam: 4 },
+            'Triple Threat Tornado Tag': { teams: 3, membersPerTeam: 2 },
+            '4-Way Tornado Tag': { teams: 4, membersPerTeam: 2 },
+            'One on Two': { teams: 2, membersPerTeam: [1, 2] },
+            'One on Two Tornado Tag': { teams: 2, membersPerTeam: [1, 2] },
+            'One on Three': { teams: 2, membersPerTeam: [1, 3] },
+            'Two on Three': { teams: 2, membersPerTeam: [2, 3] }
+        };
+
         // Returns wrestler pool filtered by show/type; applies women's filter if isWomens=true
         function getParticipantPool(show, type, isWomens = false) {
             const showData = shows.find(s => s.name === show);
@@ -2821,9 +3343,15 @@
             let pool;
             if (showData?.showType === 'Special') {
                 const eligible = showData.eligibleShows ? showData.eligibleShows.split(',').map(s => s.trim()).filter(Boolean) : [];
-                pool = eligible.length > 0 ? wrestlers.filter(w => eligible.includes(w.show)) : wrestlers;
+                pool = eligible.length > 0 ? wrestlers.filter(w => {
+                    const wrestlerShows = w.shows || [w.show];
+                    return wrestlerShows.some(ws => eligible.includes(ws));
+                }) : wrestlers;
             } else {
-                pool = (show && !isCrossShow) ? wrestlers.filter(w => w.show === show) : wrestlers;
+                pool = (show && !isCrossShow) ? wrestlers.filter(w => {
+                    const wrestlerShows = w.shows || [w.show];
+                    return wrestlerShows.includes(show);
+                }) : wrestlers;
             }
             if (isWomens) pool = pool.filter(w => w.division === "Women's" || (w.gender && w.gender.toLowerCase() === 'female'));
             return pool;
@@ -2834,6 +3362,7 @@
             const showData = shows.find(s => s.name === show);
             const isCrossShow = CROSS_SHOW_TYPES.has(type);
             const pool = getParticipantPool(show, type);
+            const teamStructure = MATCH_TEAM_STRUCTURE[type];
 
             const noteEl = document.getElementById('crossShowNote');
             let noteText = '⚠️ Cross-show match — all superstars available.';
@@ -2853,36 +3382,73 @@
                 const teams = TEAMS.filter(t => t.members.some(m => pool.find(w => w.name === m)));
                 if (teams.length > 0) {
                     const teamsHtml = `<div class="form-group" style="background:rgba(204,0,0,0.07);border:1px solid rgba(204,0,0,0.25);border-radius:6px;padding:10px 14px;margin-bottom:12px;">
-                        <label>🏷️ Quick Team Select (auto-fills participants)</label>
+                        <label>🏷️ Quick Team Select (optional - auto-fills participants)</label>
                         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
                             ${teams.map((t,i) => `<button type="button" class="btn btn-secondary" style="font-size:0.8em;padding:5px 12px;" onclick="autoFillTeam(${i}, '${type}', ${count}, '${show}')">${t.name}</button>`).join('')}
                         </div>
                     </div>`;
                     grid.insertAdjacentHTML('afterbegin', teamsHtml);
-                    // Store teams in a scoped var accessible by autoFillTeam
                     grid._availableTeams = teams;
                 }
             }
 
-            // Render in rows of 2
-            for (let i = 0; i < count; i += 2) {
-                const row = document.createElement('div');
-                row.className = 'form-row';
-                for (let j = i; j < Math.min(i + 2, count); j++) {
-                    const num = j + 1;
-                    const required = num === 1 ? 'required' : '';
-                    const label = num === 1 ? 'Participant 1 *' : `Participant ${num}`;
-                    row.innerHTML += `
-                        <div class="form-group">
-                            <label>${label}</label>
-                            <select id="matchP${num}" ${required}>
-                                <option value="">Select Superstar</option>
-                                ${pool.map(w => `<option value="${w.name}">${w.name} (${w.show})</option>`).join('')}
-                            </select>
-                        </div>`;
+            // Render participants with team grouping if applicable
+            if (teamStructure) {
+                const { teams, membersPerTeam } = teamStructure;
+                let slotIndex = 0;
+                
+                for (let teamIdx = 0; teamIdx < teams; teamIdx++) {
+                    const teamSize = Array.isArray(membersPerTeam) ? membersPerTeam[teamIdx] : membersPerTeam;
+                    const teamLabel = teams === 2 ? (teamIdx === 0 ? 'Team A' : 'Team B') : `Team ${teamIdx + 1}`;
+                    
+                    // Team header
+                    const headerDiv = document.createElement('div');
+                    headerDiv.style.cssText = 'background:rgba(204,0,0,0.1);border-left:3px solid var(--red);padding:8px 12px;margin:12px 0 8px 0;border-radius:4px;';
+                    headerDiv.innerHTML = `<strong style="color:#fff;font-size:0.9em;text-transform:uppercase;letter-spacing:1px;">${teamLabel}</strong>`;
+                    grid.appendChild(headerDiv);
+                    
+                    // Team members in rows of 2
+                    for (let i = 0; i < teamSize; i += 2) {
+                        const row = document.createElement('div');
+                        row.className = 'form-row';
+                        for (let j = i; j < Math.min(i + 2, teamSize); j++) {
+                            slotIndex++;
+                            const required = slotIndex === 1 ? 'required' : '';
+                            const label = `Member ${j + 1}${slotIndex === 1 ? ' *' : ''}`;
+                            row.innerHTML += `
+                                <div class="form-group">
+                                    <label>${label}</label>
+                                    <select id="matchP${slotIndex}" ${required}>
+                                        <option value="">Select Superstar</option>
+                                        ${pool.map(w => `<option value="${w.name}">${w.name} (${w.show})</option>`).join('')}
+                                    </select>
+                                </div>`;
+                        }
+                        if (teamSize % 2 !== 0 && i + 2 > teamSize) row.innerHTML += '<div class="form-group"></div>';
+                        grid.appendChild(row);
+                    }
                 }
-                if (count % 2 !== 0 && i + 2 > count) row.innerHTML += '<div class="form-group"></div>';
-                grid.appendChild(row);
+            } else {
+                // Regular match (no team structure) - render in rows of 2
+                for (let i = 0; i < count; i += 2) {
+                    const row = document.createElement('div');
+                    row.className = 'form-row';
+                    for (let j = i; j < Math.min(i + 2, count); j++) {
+                        const num = j + 1;
+                        const required = num === 1 ? 'required' : '';
+                        const label = num === 1 ? 'Participant 1 *' : `Participant ${num}`;
+                        row.innerHTML += `
+                            <div class="form-group">
+                                <label>${label}</label>
+                                <select id="matchP${num}" ${required}>
+                                    <option value="">Select Superstar</option>
+                                    ${pool.map(w => `<option value="${w.name}">${w.name} (${w.show})</option>`).join('')}
+                                </select>
+                            </div>`;
+                    }
+                    if (count % 2 !== 0 && i + 2 > count) row.innerHTML += '<div class="form-group"></div>';
+                    grid.appendChild(row);
+                }
             }
 
             if (restoreValues) {
@@ -2945,6 +3511,45 @@
                 }
             }
             populateMatchChampionships(show);
+            checkMatchLimit();
+        }
+
+        async function checkMatchLimit() {
+            const show = document.getElementById('matchShow').value;
+            const date = document.getElementById('matchDate').value;
+            const matchId = document.getElementById('matchId').value;
+            const warningEl = document.getElementById('matchLimitWarning');
+            
+            if (!show || !date) {
+                warningEl.style.display = 'none';
+                return;
+            }
+            
+            try {
+                const url = `${API}/matches/check-limit?show=${encodeURIComponent(show)}&date=${encodeURIComponent(date)}${matchId ? '&excludeId=' + matchId : ''}`;
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                if (data.limit) {
+                    if (data.canAdd) {
+                        warningEl.innerHTML = `✅ Match count: ${data.current}/${data.limit} for ${show} on ${new Date(date).toLocaleDateString()}`;
+                        warningEl.style.background = 'rgba(34,197,94,0.15)';
+                        warningEl.style.borderColor = 'rgba(34,197,94,0.4)';
+                        warningEl.style.color = '#4ade80';
+                    } else {
+                        warningEl.innerHTML = `⚠️ LIMIT REACHED: ${data.current}/${data.limit} matches for ${show} on ${new Date(date).toLocaleDateString()}. Cannot add more matches.`;
+                        warningEl.style.background = 'rgba(220,38,38,0.15)';
+                        warningEl.style.borderColor = 'rgba(220,38,38,0.4)';
+                        warningEl.style.color = '#f87171';
+                    }
+                    warningEl.style.display = 'block';
+                } else {
+                    warningEl.style.display = 'none';
+                }
+            } catch (err) {
+                console.error('Error checking match limit:', err);
+                warningEl.style.display = 'none';
+            }
         }
 
         function populateMatchChampionships(show, selectedId) {
@@ -2968,6 +3573,16 @@
             const holder = selectedOption.dataset.holder;
             const champName = selectedOption.textContent.toLowerCase();
             const isWomens = WOMENS_KEYWORDS.some(kw => champName.includes(kw));
+            const isTagTitle = champName.includes('tag team') || champName.includes('tag');
+
+            // Auto-switch to tag match if tag championship selected
+            const currentType = document.getElementById('matchType').value;
+            if (isTagTitle && currentType === 'One vs One') {
+                document.getElementById('matchType').value = 'Two on Two';
+                const show = document.getElementById('matchShow').value;
+                _teamFillSlot = 0;
+                buildParticipantSlots(4, show);
+            }
 
             if (isWomens) {
                 // Rebuild participant slots filtered to women's division
@@ -2985,13 +3600,33 @@
                 });
             }
 
+            // Auto-fill champion(s)
             if (holder && holder !== 'Vacant') {
-                const p1 = document.getElementById('matchP1');
-                if (p1) {
-                    for (let i = 0; i < p1.options.length; i++) {
-                        if (p1.options[i].value === holder) { p1.value = holder; break; }
+                setTimeout(() => {
+                    if (holder.includes(' & ')) {
+                        // Tag team champions - split and fill first 2 slots
+                        const members = holder.split(' & ');
+                        members.forEach((name, idx) => {
+                            const slot = document.getElementById(`matchP${idx + 1}`);
+                            if (slot) {
+                                for (let i = 0; i < slot.options.length; i++) {
+                                    if (slot.options[i].value === name.trim()) {
+                                        slot.value = name.trim();
+                                        break;
+                                    }
+                                }
+                            }
+                        });
+                    } else {
+                        // Single champion
+                        const p1 = document.getElementById('matchP1');
+                        if (p1) {
+                            for (let i = 0; i < p1.options.length; i++) {
+                                if (p1.options[i].value === holder) { p1.value = holder; break; }
+                            }
+                        }
                     }
-                }
+                }, 0);
             }
         }
 
@@ -3006,15 +3641,56 @@
             return parts;
         }
 
+        function getWinningTeamMembers(type, participants) {
+            const teamStructure = MATCH_TEAM_STRUCTURE[type];
+            if (!teamStructure) return participants; // Not a team match
+            
+            const { teams, membersPerTeam } = teamStructure;
+            const winningTeams = [];
+            let slotIndex = 0;
+            
+            for (let teamIdx = 0; teamIdx < teams; teamIdx++) {
+                const teamSize = Array.isArray(membersPerTeam) ? membersPerTeam[teamIdx] : membersPerTeam;
+                const teamMembers = [];
+                for (let i = 0; i < teamSize; i++) {
+                    if (participants[slotIndex]) teamMembers.push(participants[slotIndex]);
+                    slotIndex++;
+                }
+                if (teamMembers.length > 0) {
+                    winningTeams.push({
+                        label: teams === 2 ? (teamIdx === 0 ? 'Team A' : 'Team B') : `Team ${teamIdx + 1}`,
+                        members: teamMembers
+                    });
+                }
+            }
+            return winningTeams;
+        }
+
         function populateMatchWinner(participants, selectedWinner) {
+            const type = document.getElementById('matchType').value;
             const sel = document.getElementById('matchWinner');
             sel.innerHTML = '<option value="">No Winner Yet</option>';
-            participants.forEach(name => {
-                const opt = document.createElement('option');
-                opt.value = name;
-                opt.textContent = name;
-                sel.appendChild(opt);
-            });
+            
+            const teamStructure = MATCH_TEAM_STRUCTURE[type];
+            if (teamStructure) {
+                // Tag team match - show teams as winners
+                const teams = getWinningTeamMembers(type, participants);
+                teams.forEach(team => {
+                    const opt = document.createElement('option');
+                    opt.value = team.members.join(' & ');
+                    opt.textContent = `${team.label}: ${team.members.join(' & ')}`;
+                    sel.appendChild(opt);
+                });
+            } else {
+                // Regular match - show individual participants
+                participants.forEach(name => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    sel.appendChild(opt);
+                });
+            }
+            
             if (selectedWinner) sel.value = selectedWinner;
         }
 
@@ -3028,7 +3704,10 @@
             const transferSelect = document.getElementById('transferWrestler');
             const current = transferSelect.value;
             transferSelect.innerHTML = '<option value="">Select Superstar</option>';
-            const pool = fromShow ? wrestlers.filter(w => w.show === fromShow) : [];
+            const pool = fromShow ? wrestlers.filter(w => {
+                const wrestlerShows = w.shows || [w.show];
+                return wrestlerShows.includes(fromShow);
+            }) : [];
             pool.forEach(w => {
                 const opt = document.createElement('option');
                 opt.value = w.id;
@@ -3124,7 +3803,8 @@
                     await loadMatches();
                     filterMatches(); // Apply filter immediately
                 } else {
-                    alert('Error saving match');
+                    const err = await res.json();
+                    alert(err.error || 'Error saving match');
                 }
             } catch (err) {
                 console.error('Error:', err);
@@ -3158,7 +3838,10 @@
             const select = document.getElementById('champHolder');
             const currentValue = select.value;
             select.innerHTML = '<option value="Vacant">Vacant</option>';
-            const pool = filterShow ? wrestlers.filter(w => w.show === filterShow) : wrestlers;
+            const pool = filterShow ? wrestlers.filter(w => {
+                const wrestlerShows = w.shows || [w.show];
+                return wrestlerShows.includes(filterShow);
+            }) : wrestlers;
             pool.forEach(w => {
                 const option = document.createElement('option');
                 option.value = w.name;

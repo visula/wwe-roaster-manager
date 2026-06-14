@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WWE Universe - Connection Test</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #1a1a1a; color: #fff; }
+        .result { margin: 10px 0; padding: 15px; border: 2px solid #c00; border-radius: 5px; }
+        .success { background: #0a3; border-color: #0f0; }
+        .error { background: #c00; border-color: #f00; }
+        pre { background: #000; padding: 10px; overflow: auto; max-height: 200px; }
+        button { background: #c00; color: #fff; border: none; padding: 10px 20px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #f00; }
+    </style>
+</head>
+<body>
+    <h1>WWE Universe Manager - Diagnostic Test</h1>
+    <button onclick="runFullTest()">Run Full Test</button>
+    <div id="results"></div>
+
+    <script>
+        const API = 'http://localhost:5000/api';
+        const results = document.getElementById('results');
+
+        async function runFullTest() {
+            results.innerHTML = '<p>Testing...</p>';
+            
+            try {
+                // Test 1: Shows
+                results.innerHTML += '<h2>Test 1: Loading Shows...</h2>';
+                const showsRes = await fetch(`${API}/shows`);
+                const shows = await showsRes.json();
+                results.innerHTML += `<div class="result success">✓ Shows loaded: ${shows.length} shows found</div>`;
+                results.innerHTML += `<pre>${JSON.stringify(shows.slice(0, 3), null, 2)}</pre>`;
+
+                // Test 2: Wrestlers
+                results.innerHTML += '<h2>Test 2: Loading Wrestlers...</h2>';
+                const wrestlersRes = await fetch(`${API}/wrestlers`);
+                const wrestlers = await wrestlersRes.json();
+                results.innerHTML += `<div class="result success">✓ Wrestlers loaded: ${wrestlers.length} wrestlers found</div>`;
+                results.innerHTML += `<pre>${JSON.stringify(wrestlers.slice(0, 3), null, 2)}</pre>`;
+
+                // Test 3: Matches
+                results.innerHTML += '<h2>Test 3: Loading Matches...</h2>';
+                const matchesRes = await fetch(`${API}/matches`);
+                const matches = await matchesRes.json();
+                results.innerHTML += `<div class="result success">✓ Matches loaded: ${matches.length} matches found</div>`;
+
+                // Test 4: Championships
+                results.innerHTML += '<h2>Test 4: Loading Championships...</h2>';
+                const champsRes = await fetch(`${API}/championships`);
+                const champs = await champsRes.json();
+                results.innerHTML += `<div class="result success">✓ Championships loaded: ${champs.length} championships found</div>`;
+
+                // Test 5: Dashboard
+                results.innerHTML += '<h2>Test 5: Loading Dashboard Stats...</h2>';
+                const dashRes = await fetch(`${API}/dashboard/stats`);
+                const stats = await dashRes.json();
+                results.innerHTML += `<div class="result success">✓ Dashboard loaded successfully</div>`;
+                results.innerHTML += `<pre>${JSON.stringify(stats, null, 2).substring(0, 500)}</pre>`;
+
+                results.innerHTML += '<h2 style="color: #0f0;">✓ ALL TESTS PASSED</h2>';
+                results.innerHTML += '<p>If this page works but the main page doesn\'t, the issue is in the main page\'s JavaScript initialization.</p>';
+
+            } catch (error) {
+                results.innerHTML += `<div class="result error">✗ ERROR: ${error.message}</div>`;
+                results.innerHTML += `<pre>${error.stack}</pre>`;
+            }
+        }
+
+        // Auto-run on load
+        window.addEventListener('DOMContentLoaded', runFullTest);
+    </script>
+</body>
+</html>

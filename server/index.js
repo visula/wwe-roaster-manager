@@ -64,17 +64,29 @@ app.get('/api/wrestlers', (req, res) => {
 });
 
 app.post('/api/wrestlers', (req, res) => {
-  const { name, show, division, status, imageUrl, gender, overall, alignment, titles } = req.body;
-  if (!name || !show) return res.status(400).json({ error: 'Name and show are required' });
-  const id = db.addWrestler(name, show, division || 'Unassigned', status || 'Active', imageUrl || '', gender || '', overall || null, alignment || '', titles || '');
-  res.json({ id, name, show, division, status, imageUrl, gender, overall, alignment, titles });
+  try {
+    const { name, shows, division, status, imageUrl, gender, overall, alignment, titles } = req.body;
+    if (!name || !shows || (Array.isArray(shows) && shows.length === 0)) return res.status(400).json({ error: 'Name and at least one show are required' });
+    const id = db.addWrestler(name, shows, division || 'Unassigned', status || 'Active', imageUrl || '', gender || '', overall || null, alignment || '', titles || '');
+    const wrestler = db.getWrestlerById(id);
+    res.json(wrestler);
+  } catch (err) {
+    console.error('Error adding wrestler:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.put('/api/wrestlers/:id', (req, res) => {
-  const { id } = req.params;
-  const { name, show, division, status, imageUrl, gender, overall, alignment, titles } = req.body;
-  db.updateWrestler(id, name, show, division, status, imageUrl, gender, overall, alignment, titles);
-  res.json({ id, name, show, division, status, imageUrl, gender, overall, alignment, titles });
+  try {
+    const { id } = req.params;
+    const { name, shows, division, status, imageUrl, gender, overall, alignment, titles } = req.body;
+    db.updateWrestler(id, name, shows, division, status, imageUrl, gender, overall, alignment, titles);
+    const wrestler = db.getWrestlerById(id);
+    res.json(wrestler);
+  } catch (err) {
+    console.error('Error updating wrestler:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.delete('/api/wrestlers/:id', (req, res) => {
@@ -88,18 +100,32 @@ app.get('/api/matches', (req, res) => {
   res.json(show ? db.getMatchesByShow(show) : db.getAllMatches());
 });
 
+app.get('/api/matches/check-limit', (req, res) => {
+  const { show, date, excludeId } = req.query;
+  if (!show || !date) return res.status(400).json({ error: 'Show and date are required' });
+  res.json(db.canAddMatch(show, date, excludeId ? parseInt(excludeId) : null));
+});
+
 app.post('/api/matches', (req, res) => {
   const { show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant } = req.body;
   if (!show || !participant1) return res.status(400).json({ error: 'Show and at least one participant required' });
-  const id = db.addMatch(show, type || 'Singles', category || '', participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date || new Date().toISOString(), result || 'Pending', winner || null, notes || '', championshipId || null, isImportant || 0);
-  res.json({ id, show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant });
+  try {
+    const id = db.addMatch(show, type || 'Singles', category || '', participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date || new Date().toISOString(), result || 'Pending', winner || null, notes || '', championshipId || null, isImportant || 0);
+    res.json({ id, show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 app.put('/api/matches/:id', (req, res) => {
   const { id } = req.params;
   const { show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant } = req.body;
-  db.updateMatch(id, show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId || null, isImportant || 0);
-  res.json({ id, show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant });
+  try {
+    db.updateMatch(id, show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId || null, isImportant || 0);
+    res.json({ id, show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 app.delete('/api/matches/:id', (req, res) => {
@@ -173,18 +199,18 @@ app.get('/api/teams', (req, res) => {
 });
 
 app.post('/api/teams', (req, res) => {
-  const { name, members } = req.body;
+  const { name, show, members } = req.body;
   if (!name) return res.status(400).json({ error: 'Team name required' });
   try {
-    const id = db.addTeam(name, members || []);
-    res.json({ id, name, members: members || [] });
+    const id = db.addTeam(name, show || null, members || []);
+    res.json({ id, name, show, members: members || [] });
   } catch(e) { res.status(400).json({ error: 'Team name already exists' }); }
 });
 
 app.put('/api/teams/:id', (req, res) => {
-  const { name, members } = req.body;
+  const { name, show, members } = req.body;
   try {
-    db.updateTeam(req.params.id, name, members || []);
+    db.updateTeam(req.params.id, name, show || null, members || []);
     res.json({ success: true });
   } catch(e) { res.status(400).json({ error: e.message }); }
 });
@@ -204,7 +230,13 @@ app.post('/api/transfers', (req, res) => {
   if (!wrestlerId || !fromShow || !toShow) return res.status(400).json({ error: 'Wrestler ID, from show, and to show are required' });
   const id = db.addTransfer(wrestlerId, fromShow, toShow, date || new Date().toISOString(), reason || '');
   const wrestler = db.getWrestlerById(wrestlerId);
-  if (wrestler) db.updateWrestler(wrestlerId, wrestler.name, toShow, wrestler.division, wrestler.status, wrestler.imageUrl, wrestler.gender, wrestler.overall, wrestler.alignment, wrestler.titles);
+  if (wrestler) {
+    // Update shows: remove fromShow if exists, add toShow if not exists
+    let shows = wrestler.shows || [];
+    shows = shows.filter(s => s !== fromShow);
+    if (!shows.includes(toShow)) shows.push(toShow);
+    db.updateWrestler(wrestlerId, wrestler.name, shows, wrestler.division, wrestler.status, wrestler.imageUrl, wrestler.gender, wrestler.overall, wrestler.alignment, wrestler.titles);
+  }
   res.json({ id, wrestlerId, fromShow, toShow, date, reason });
 });
 

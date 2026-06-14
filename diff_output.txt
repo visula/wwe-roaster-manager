@@ -1,0 +1,803 @@
+diff --git a/public/index.html b/public/index.html
+index 05670ff..a0459be 100644
+--- a/public/index.html
++++ b/public/index.html
+@@ -342,6 +342,7 @@
+             <button class="nav-btn" data-tab="transfers">Transfers</button>
+             <button class="nav-btn" data-tab="storylines">Storylines</button>
+             <button class="nav-btn" data-tab="mainevents">Main Events</button>
++            <button class="nav-btn" data-tab="teams">Teams</button>
+             <button class="nav-btn" data-tab="showsmgmt">Shows</button>
+             <button class="nav-btn" data-tab="setup">Season Setup</button>
+         </div>
+@@ -678,6 +679,29 @@
+             </div>
+         </div>
+ 
++        <!-- Teams Tab -->
++        <div id="teams" class="tab-content">
++            <div class="section-header">
++                <h2>Teams &amp; Factions</h2>
++                <button class="btn btn-primary" onclick="openAddTeamModal()">+ Add Team</button>
++            </div>
++            <div class="table-container">
++                <table>
++                    <thead>
++                        <tr>
++                            <th>Team Name</th>
++                            <th>Members</th>
++                            <th>Size</th>
++                            <th>Actions</th>
++                        </tr>
++                    </thead>
++                    <tbody id="teamsTable">
++                        <tr><td colspan="4" class="no-data">Loading teams...</td></tr>
++                    </tbody>
++                </table>
++            </div>
++        </div>
++
+         <!-- Shows Management Tab -->
+         <div id="showsmgmt" class="tab-content">
+             <div class="section-header">
+@@ -838,6 +862,31 @@
+         </div>
+     </div>
+ 
++    <!-- Team Modal -->
++    <div id="teamModal" class="modal">
++        <div class="modal-content">
++            <div class="modal-header">
++                <h2 id="teamModalTitle">Add Team</h2>
++                <button class="close-btn" onclick="closeModal('teamModal')">&times;</button>
++            </div>
++            <form onsubmit="saveTeam(event)">
++                <input type="hidden" id="teamEditId">
++                <div class="form-group">
++                    <label>Team / Faction Name *</label>
++                    <input type="text" id="teamName" placeholder="e.g. Judgment Day" required>
++                </div>
++                <div class="form-group">
++                    <label>Members (one per line)</label>
++                    <textarea id="teamMembers" rows="6" placeholder="Roman Reigns&#10;Solo Sikoa&#10;Jacob Fatu"></textarea>
++                </div>
++                <div class="form-actions">
++                    <button type="button" class="btn btn-secondary" onclick="closeModal('teamModal')">Cancel</button>
++                    <button type="submit" class="btn btn-success">Save</button>
++                </div>
++            </form>
++        </div>
++    </div>
++
+     <!-- Main Event Modal (OLD - replaced) -->
+     <div id="mainEventModal" class="modal" style="display:none"></div>
+ 
+@@ -1162,9 +1211,77 @@
+         let allMatches = [];
+         let championships = [];
+         let transfers = [];
++        let allEvents = [];   // proper events table
++        let allTeams = [];    // teams from DB
++
++        // ==================== TEAMS DATA (seeded from DB; fallback hardcoded list) ====================
++        const BUILTIN_TEAMS = [
++            { name: 'DIY',                  members: ['Johnny Gargano', 'Tommaso Ciampa'] },
++            { name: 'Street Profits',       members: ['Montez Ford', 'Angelo Dawkins'] },
++            { name: 'The Usos',             members: ['Jimmy Uso', 'Jey Uso'] },
++            { name: 'Viking Raiders',       members: ['Erik', 'Ivar'] },
++            { name: 'FTR',                  members: ['Dax Harwood', 'Cash Wheeler'] },
++            { name: 'The Young Bucks',      members: ['Matt Jackson', 'Nick Jackson'] },
++            { name: 'New Day',              members: ['Kofi Kingston', 'Xavier Woods'] },
++            { name: 'Judgment Day',         members: ['Finn Bálor', 'Damian Priest', 'Dirty Dominik Mysterio', 'JD McDonagh'] },
++            { name: 'Bloodline',            members: ['Roman Reigns', 'Solo Sikoa', 'Jacob Fatu', 'Jimmy Uso', 'Jey Uso'] },
++            { name: 'LWO',                  members: ['Rey Mysterio', 'Santos Escobar', 'Carlito'] },
++            { name: 'Undisputed Kingdom',   members: ['Adam Cole', 'Roderick Strong', 'MJF'] },
++        ];
++        // TEAMS is the live merged list used by auto-fill
++        let TEAMS = [...BUILTIN_TEAMS];
++
++        // ==================== MATCH TYPE → CATEGORY VALIDATION ====================
++        const TYPE_CATEGORY_MAP = {
++            // Singles
++            'One vs One':           ['Normal','Extreme Rules','Falls Count Anywhere','Hell in a Cell','Steel Cage','Submission Match','Last Man Standing','Iron Man Match','No Holds Barred','Backstage Brawl','Promo','Special Matches'],
++            'Triple Threat':        ['Normal','Extreme Rules','Falls Count Anywhere','Hell in a Cell','Steel Cage','Ladder Match','No Holds Barred'],
++            'Fatal 4-Way':          ['Normal','Extreme Rules','Falls Count Anywhere','Ladder Match','Steel Cage'],
++            '5-Way':                ['Normal','Extreme Rules'],
++            '6-Way':                ['Normal','Extreme Rules'],
++            '8-Way':                ['Normal'],
++            // Tag
++            'Two on Two':           ['Tag Team','Tornado Tag','Tables Match','Ladder Match','TLC','Steel Cage','Extreme Rules','Normal'],
++            'Two on Two Mixed Tag': ['Tag Team','Normal'],
++            'Two on Two Tornado Tag':['Tornado Tag','Tables Match','Ladder Match','TLC'],
++            'Three on Three':       ['Tag Team','Tornado Tag','Extreme Rules','Normal'],
++            'Three on Three Tornado Tag':['Tornado Tag'],
++            'Four on Four':         ['Tag Team','Normal'],
++            'Triple Threat Tornado Tag': ['Tornado Tag'],
++            '4-Way Tornado Tag':    ['Tornado Tag'],
++            // Handicap
++            'One on Two':           ['Handicap','Normal'],
++            'One on Two Tornado Tag':['Handicap'],
++            'One on Three':         ['Handicap','Normal'],
++            'Two on Three':         ['Handicap','Normal'],
++            'Handicap One on Two':  ['Handicap','Normal'],
++            // Specialty (locked)
++            'Hell in a Cell':       ['Hell in a Cell'],
++            'Steel Cage Match':     ['Steel Cage'],
++            'Tables Match':         ['Tables Match'],
++            'Ladder Match':         ['Ladder Match'],
++            'TLC Match':            ['TLC'],
++            'Submission Match':     ['Submission Match'],
++            'Last Man Standing':    ['Last Man Standing'],
++            'Iron Man Match':       ['Iron Man Match'],
++            'Ambulance Match':      ['Special Matches'],
++            'Casket Match':         ['Special Matches'],
++            'Dumpster Match':       ['Special Matches'],
++            'I Quit Match':         ['Special Matches'],
++            'Inferno Match':        ['Special Matches'],
++            '3 Stages of Hell':     ['Special Matches'],
++            'Battle Royal':         ['Battle Royal'],
++            // Main event exclusives
++            'Elimination Chamber':  ['Special Matches'],
++            'Royal Rumble':         ['Battle Royal'],
++            'War Games':            ['Special Matches'],
++        };
++
++        // Women's division flag for championship-based filtering
++        const WOMENS_KEYWORDS = ["women", "diva", "knockouts", "reina"];
+ 
+         // Configurable match categories and types
+-        let matchCategories = ['Normal','Tag Team','Handicap','Extreme Rules','Falls Count Anywhere','Hell in a Cell','Steel Cage','Tables Match','Ladder Match','TLC','Submission Match','Last Man Standing','Iron Man Match','No Holds Barred','Backstage Brawl','Special Matches','Battle Royal','Promo'];
++        let matchCategories = ['Normal','Tag Team','Tornado Tag','Handicap','Extreme Rules','Falls Count Anywhere','Hell in a Cell','Steel Cage','Tables Match','Ladder Match','TLC','Submission Match','Last Man Standing','Iron Man Match','No Holds Barred','Backstage Brawl','Special Matches','Battle Royal','Promo'];
+         let matchTypes = ['One vs One','Triple Threat','Fatal 4-Way','5-Way','6-Way','8-Way','Two on Two','Two on Two Mixed Tag','Two on Two Tornado Tag','Three on Three','Three on Three Tornado Tag','Four on Four','Triple Threat Tornado Tag','4-Way Tornado Tag','One on Two','One on Two Tornado Tag','One on Three','Two on Three','Handicap One on Two','Hell in a Cell','Steel Cage Match','Tables Match','Ladder Match','TLC Match','Submission Match','Last Man Standing','Iron Man Match','Ambulance Match','Casket Match','Dumpster Match','I Quit Match','Inferno Match','3 Stages of Hell','Battle Royal'];
+ 
+         // Load from localStorage
+@@ -1201,6 +1318,27 @@
+             });
+         }
+ 
++        // Apply type→category validation to a category <select> based on a chosen type
++        function applyTypeCategoryValidation(typeVal, catSelId) {
++            const catSel = document.getElementById(catSelId);
++            if (!catSel) return;
++            const allowed = TYPE_CATEGORY_MAP[typeVal];
++            if (!allowed) return;
++            const prevVal = catSel.value;
++            // Filter options to only allowed categories
++            catSel.innerHTML = allowed
++                .filter(c => matchCategories.includes(c) || allowed.includes(c))
++                .map(c => `<option value="${c}">${c}</option>`).join('');
++            // Auto-select if only one option, else restore previous if still valid
++            if (allowed.length === 1) {
++                catSel.value = allowed[0];
++                catSel.disabled = true;
++            } else {
++                catSel.disabled = false;
++                if (allowed.includes(prevVal)) catSel.value = prevVal;
++            }
++        }
++
+         function updateMatchTypeSelects() {
+             ['matchType', 'meMatchType'].forEach(id => {
+                 const sel = document.getElementById(id);
+@@ -1594,6 +1732,8 @@
+             loadMatches();
+             loadChampionships();
+             loadTransfers();
++            loadTeams();
++            loadEvents();
+         });
+ 
+         function setupNavigation() {
+@@ -1776,6 +1916,99 @@
+             }
+         }
+ 
++        // ==================== AUTO TITLE CHANGE ====================
++        async function autoUpdateChampionship(championshipId, winner, matchDate) {
++            if (!championshipId || !winner || winner === 'Vacant') return;
++            const champ = championships.find(c => c.id == championshipId);
++            if (!champ || champ.holder === winner) return;
++            // Record history entry for previous holder
++            await fetch(`${API}/championship-history`, {
++                method: 'POST',
++                headers: { 'Content-Type': 'application/json' },
++                body: JSON.stringify({ championshipId, holder: champ.holder, dateCaptured: matchDate || new Date().toISOString(), notes: 'Title change' })
++            });
++            // Update current holder
++            await fetch(`${API}/championships/${championshipId}`, {
++                method: 'PUT',
++                headers: { 'Content-Type': 'application/json' },
++                body: JSON.stringify({ ...champ, holder: winner })
++            });
++            await loadChampionships();
++        }
++
++        // ==================== EVENTS (proper table) ====================
++        async function loadEvents() {
++            try {
++                const res = await fetch(`${API}/events`);
++                allEvents = await res.json();
++            } catch(err) { console.error('Error loading events:', err); }
++        }
++
++        // ==================== TEAMS ====================
++        async function loadTeams() {
++            try {
++                const res = await fetch(`${API}/teams`);
++                allTeams = await res.json();
++                // Merge DB teams with builtins (DB takes precedence by name)
++                const dbNames = new Set(allTeams.map(t => t.name));
++                TEAMS = [...allTeams, ...BUILTIN_TEAMS.filter(t => !dbNames.has(t.name))];
++                displayTeams();
++            } catch(err) { console.error('Error loading teams:', err); }
++        }
++
++        function displayTeams() {
++            const html = allTeams.length > 0
++                ? allTeams.map(t => `<tr>
++                    <td><strong>${t.name}</strong></td>
++                    <td>${t.members.join(', ')}</td>
++                    <td><span class="badge badge-info">${t.members.length}</span></td>
++                    <td><div class="action-buttons">
++                        <button class="btn btn-secondary" onclick="editTeam(${t.id})">Edit</button>
++                        <button class="btn btn-danger" onclick="deleteTeam(${t.id})">Delete</button>
++                    </div></td>
++                </tr>`).join('')
++                : '<tr><td colspan="4" class="no-data">No custom teams yet. Add teams above or use the built-in defaults.</td></tr>';
++            document.getElementById('teamsTable').innerHTML = html;
++        }
++
++        function openAddTeamModal() {
++            document.getElementById('teamEditId').value = '';
++            document.getElementById('teamModalTitle').textContent = 'Add Team / Faction';
++            document.getElementById('teamName').value = '';
++            document.getElementById('teamMembers').value = '';
++            openModal('teamModal');
++        }
++
++        function editTeam(id) {
++            const t = allTeams.find(x => x.id === id);
++            if (!t) return;
++            document.getElementById('teamEditId').value = id;
++            document.getElementById('teamModalTitle').textContent = 'Edit Team / Faction';
++            document.getElementById('teamName').value = t.name;
++            document.getElementById('teamMembers').value = t.members.join('\n');
++            openModal('teamModal');
++        }
++
++        async function saveTeam(e) {
++            e.preventDefault();
++            const id = document.getElementById('teamEditId').value;
++            const name = document.getElementById('teamName').value.trim();
++            const members = document.getElementById('teamMembers').value.split('\n').map(s => s.trim()).filter(Boolean);
++            const method = id ? 'PUT' : 'POST';
++            const url = id ? `${API}/teams/${id}` : `${API}/teams`;
++            try {
++                const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name, members }) });
++                if (res.ok) { closeModal('teamModal'); await loadTeams(); }
++                else { const e = await res.json(); alert(e.error || 'Error saving team'); }
++            } catch(err) { alert('Error saving team'); }
++        }
++
++        async function deleteTeam(id) {
++            if (!confirm('Delete this team?')) return;
++            await fetch(`${API}/teams/${id}`, { method: 'DELETE' });
++            await loadTeams();
++        }
++
+         async function loadDashboard() {
+             try {
+                 const res = await fetch(`${API}/dashboard/stats`);
+@@ -2152,13 +2385,29 @@
+             const p3 = document.getElementById('mePool3').value;
+             const pools = [p1,p2,p3].filter(Boolean);
+             const notes = `[MEEVENT][MENAME:${name}][POOLS:${pools.join(',')}]`;
++            // Save to matches table (legacy, keeps [MEEVENT] tag for display)
+             const url = id ? `${API}/matches/${id}` : `${API}/matches`;
+             const method = id ? 'PUT' : 'POST';
+             try {
+                 const res = await fetch(url, { method, headers:{'Content-Type':'application/json'},
+                     body: JSON.stringify({ show, type:'[EVENT]', participant1: name, date, result:'Pending', notes, isImportant:1 }) });
+-                if (res.ok) { closeModal('createMainEventModal'); await loadMatches(); }
+-                else alert('Error saving event');
++                if (!res.ok) { alert('Error saving event'); return; }
++                const saved = await res.json();
++                const matchId = saved.id || id;
++                // Also save to proper events table
++                const evtPayload = { name, show, date, pools: pools.join(','), notes: '' };
++                // Find existing events entry by matching matchId stored in notes (use [EVTREF:id])
++                const evtMatch = allEvents.find(ev => ev.notes && ev.notes.includes(`[EVTREF:${matchId}]`));
++                if (evtMatch) {
++                    await fetch(`${API}/events/${evtMatch.id}`, { method:'PUT', headers:{'Content-Type':'application/json'},
++                        body: JSON.stringify({ ...evtPayload, notes: `[EVTREF:${matchId}]`, status: evtMatch.status }) });
++                } else if (!id) {
++                    await fetch(`${API}/events`, { method:'POST', headers:{'Content-Type':'application/json'},
++                        body: JSON.stringify({ ...evtPayload, notes: `[EVTREF:${matchId}]` }) });
++                }
++                closeModal('createMainEventModal');
++                await loadMatches();
++                await loadEvents();
+             } catch(err) { alert('Error saving event'); }
+         }
+ 
+@@ -2166,15 +2415,13 @@
+             const el = id => document.getElementById(id);
+             el('meMatchEventId').value = eventId;
+             el('meMatchPoolTag').value = poolTag;
++            _meTeamFillSlot = 0;
+             const eventRecord = allMatches.find(m => m.id === eventId);
+-            const eventShow = eventRecord ? eventRecord.show : '';
+ 
+-            // Populate show filter with pool shows + All Cross-show option
+             const poolShows = poolTag ? poolTag.split(',').filter(Boolean) : [];
+             const showFilter = el('meMatchShowFilter');
+             showFilter.innerHTML = `<option value="">🌐 All (Cross-show)</option>`;
+             poolShows.forEach(s => { const o = document.createElement('option'); o.value=s; o.textContent=s; showFilter.appendChild(o); });
+-            showFilter.value = poolShows[0] || '';
+ 
+             if (editMatchId) {
+                 const m = allMatches.find(x => x.id === editMatchId);
+@@ -2183,25 +2430,30 @@
+                 el('meMatchModalTitle').textContent = 'Edit Match — ' + eventName;
+                 el('meMatchType').value = m.type;
+                 el('meMatchCategory').value = m.category || 'Normal';
++                applyTypeCategoryValidation(m.type, 'meMatchCategory');
+                 el('meMatchResult').value = m.result || 'Pending';
+-                const cleanNotes = (m.notes||'').replace(/\[MEMATCH:[^\]]+\]/g,'').trim();
+-                el('meMatchNotes').value = cleanNotes;
++                el('meMatchNotes').value = (m.notes||'').replace(/\[MEMATCH:[^\]]+\]/g,'').trim();
+                 
+-                // Set show filter to first pool show by default
+-                if (poolShows.length > 0) {
++                // Auto-select show filter based on match participants
++                if (m.participant1) {
++                    const participant = wrestlers.find(w => w.name === m.participant1);
++                    if (participant && poolShows.includes(participant.show)) {
++                        showFilter.value = participant.show;
++                    } else if (poolShows.length > 0) {
++                        showFilter.value = poolShows[0];
++                    }
++                } else if (poolShows.length > 0) {
+                     showFilter.value = poolShows[0];
+                 }
+                 
+                 buildMEMatchSlots(ME_MATCH_SLOTS[m.type]||2, poolTag);
+-                
+-                // Wait for DOM to update, then set participant values
+                 setTimeout(() => {
+                     [m.participant1,m.participant2,m.participant3,m.participant4,m.participant5,m.participant6,m.participant7,m.participant8].forEach((p,i) => {
+                         const s = document.getElementById(`meMP${i+1}`); if(s&&p) s.value=p;
+                     });
+                 }, 0);
+-                
+-                populateMEMatchChampionships(eventShow, m.championshipId);
++                // Fix #23: use current show filter for champ dropdown
++                populateMEMatchChampionships(showFilter.value, m.championshipId, poolTag);
+                 if (m.result==='Completed') {
+                     const parts = [m.participant1,m.participant2,m.participant3,m.participant4,m.participant5,m.participant6,m.participant7,m.participant8].filter(Boolean);
+                     const sel = el('meMatchWinner');
+@@ -2217,21 +2469,43 @@
+                 el('meMatchResult').value = 'Pending';
+                 el('meMatchNotes').value = '';
+                 el('meMatchWinner').innerHTML = '<option value="">No Winner Yet</option>';
++                // Auto-select first pool show for new matches
++                showFilter.value = poolShows[0] || '';
+                 buildMEMatchSlots(2, poolTag);
+-                populateMEMatchChampionships(eventShow);
++                populateMEMatchChampionships(showFilter.value, null, poolTag);
+             }
+             openModal('meMatchModal');
+         }
+ 
+-        function buildMEMatchSlots(count, poolTag) {
++        function buildMEMatchSlots(count, poolTag, isWomens = false) {
+             const showFilter = document.getElementById('meMatchShowFilter');
+             const selectedShow = showFilter ? showFilter.value : '';
+             const pools = poolTag ? poolTag.split(',').filter(Boolean) : [];
+-            const pool = selectedShow
++            let pool = selectedShow
+                 ? wrestlers.filter(w => w.show === selectedShow)
+                 : (pools.length > 0 ? wrestlers.filter(w => pools.includes(w.show)) : wrestlers);
++            if (isWomens) pool = pool.filter(w => w.division === "Women's" || (w.gender && w.gender.toLowerCase() === 'female'));
++
+             const grid = document.getElementById('meMatchParticipantsGrid');
+             grid.innerHTML = '';
++
++            // Team auto-fill for ME tag matches
++            const type = document.getElementById('meMatchType').value;
++            const isTagType = ['Two on Two','Two on Two Mixed Tag','Two on Two Tornado Tag','Three on Three','Three on Three Tornado Tag','Four on Four','Triple Threat Tornado Tag','4-Way Tornado Tag'].includes(type);
++            if (isTagType) {
++                const teams = TEAMS.filter(t => t.members.some(m => pool.find(w => w.name === m)));
++                if (teams.length > 0) {
++                    const teamsHtml = `<div class="form-group" style="background:rgba(204,0,0,0.07);border:1px solid rgba(204,0,0,0.25);border-radius:6px;padding:10px 14px;margin-bottom:12px;">
++                        <label>🏷️ Quick Team Select</label>
++                        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
++                            ${teams.map((t,i) => `<button type="button" class="btn btn-secondary" style="font-size:0.8em;padding:5px 12px;" onclick="autoFillMETeam(${i}, '${type}', ${count}, '${poolTag}')">` + t.name + `</button>`).join('')}
++                        </div>
++                    </div>`;
++                    grid.insertAdjacentHTML('afterbegin', teamsHtml);
++                    grid._availableTeams = teams;
++                }
++            }
++
+             for (let i = 0; i < count; i += 2) {
+                 const row = document.createElement('div'); row.className = 'form-row';
+                 for (let j = i; j < Math.min(i+2, count); j++) {
+@@ -2245,23 +2519,41 @@
+             }
+         }
+ 
++        let _meTeamFillSlot = 0;
++        function autoFillMETeam(teamIndexInAvailable, type, count, poolTag) {
++            const grid = document.getElementById('meMatchParticipantsGrid');
++            const teams = grid._availableTeams;
++            if (!teams) return;
++            const team = teams[teamIndexInAvailable];
++            if (!team) return;
++            const showFilter = document.getElementById('meMatchShowFilter');
++            const selectedShow = showFilter ? showFilter.value : '';
++            const pools = poolTag ? poolTag.split(',').filter(Boolean) : [];
++            const pool = selectedShow ? wrestlers.filter(w => w.show === selectedShow) : wrestlers.filter(w => !pools.length || pools.includes(w.show));
++            const slotsPerTeam = { 'Two on Two': 2,'Two on Two Mixed Tag': 2,'Two on Two Tornado Tag': 2,'Three on Three': 3,'Three on Three Tornado Tag': 3,'Four on Four': 4,'Triple Threat Tornado Tag': 2,'4-Way Tornado Tag': 2 };
++            const teamSize = slotsPerTeam[type] || 2;
++            let startSlot = _meTeamFillSlot;
++            if (startSlot + teamSize > count) startSlot = 0;
++            const members = team.members.filter(m => pool.find(w => w.name === m)).slice(0, teamSize);
++            members.forEach((name, i) => { const sel = document.getElementById(`meMP${startSlot + i + 1}`); if (sel) sel.value = name; });
++            _meTeamFillSlot = startSlot + teamSize;
++            if (_meTeamFillSlot >= count) _meTeamFillSlot = 0;
++        }
++
+         function onMEMatchShowFilterChange() {
+             const type = document.getElementById('meMatchType').value;
+             const poolTag = document.getElementById('meMatchPoolTag').value;
+             const matchId = document.getElementById('meMatchId').value;
+-            
++            const champId = document.getElementById('meMatchChampionship').value;
++            // Update championship dropdown based on show filter (fix #23)
++            const eventRecord = allMatches.find(m => m.id == document.getElementById('meMatchEventId').value);
++            const showFilter = document.getElementById('meMatchShowFilter').value;
++            populateMEMatchChampionships(showFilter, champId, poolTag);
++            _meTeamFillSlot = 0;
+             buildMEMatchSlots(ME_MATCH_SLOTS[type]||2, poolTag);
+-            
+-            // If editing, restore participant values after rebuilding slots
+             if (matchId) {
+                 const m = allMatches.find(x => x.id == matchId);
+-                if (m) {
+-                    setTimeout(() => {
+-                        [m.participant1,m.participant2,m.participant3,m.participant4,m.participant5,m.participant6,m.participant7,m.participant8].forEach((p,i) => {
+-                            const s = document.getElementById(`meMP${i+1}`); if(s&&p) s.value=p;
+-                        });
+-                    }, 0);
+-                }
++                if (m) setTimeout(() => { [m.participant1,m.participant2,m.participant3,m.participant4,m.participant5,m.participant6,m.participant7,m.participant8].forEach((p,i) => { const s=document.getElementById(`meMP${i+1}`); if(s&&p) s.value=p; }); }, 0);
+             }
+         }
+ 
+@@ -2269,54 +2561,57 @@
+             const type = document.getElementById('meMatchType').value;
+             const poolTag = document.getElementById('meMatchPoolTag').value;
+             const matchId = document.getElementById('meMatchId').value;
+-            
++            applyTypeCategoryValidation(type, 'meMatchCategory');
++            _meTeamFillSlot = 0;
+             buildMEMatchSlots(ME_MATCH_SLOTS[type]||2, poolTag);
+-            
+-            // If editing, restore participant values after rebuilding slots
+             if (matchId) {
+                 const m = allMatches.find(x => x.id == matchId);
+-                if (m) {
+-                    setTimeout(() => {
+-                        [m.participant1,m.participant2,m.participant3,m.participant4,m.participant5,m.participant6,m.participant7,m.participant8].forEach((p,i) => {
+-                            const s = document.getElementById(`meMP${i+1}`); if(s&&p) s.value=p;
+-                        });
+-                    }, 0);
+-                }
++                if (m) setTimeout(() => { [m.participant1,m.participant2,m.participant3,m.participant4,m.participant5,m.participant6,m.participant7,m.participant8].forEach((p,i) => { const s=document.getElementById(`meMP${i+1}`); if(s&&p) s.value=p; }); }, 0);
+             }
+         }
+ 
+-        function populateMEMatchChampionships(show, selectedId) {
++        // Fix #23: filter championships by show filter OR eligible pools for All Cross-show
++        function populateMEMatchChampionships(show, selectedId, poolTag) {
+             const sel = document.getElementById('meMatchChampionship');
+             sel.innerHTML = '<option value="">No Championship</option>';
+-            const pool = show ? championships.filter(c => c.show===show) : championships;
+-            pool.forEach(c => { 
+-                const o=document.createElement('option'); 
+-                o.value=c.id; 
+-                o.textContent=`${c.name} (${c.holder})`;
+-                o.dataset.holder = c.holder; // Store current holder
+-                sel.appendChild(o); 
++            let pool;
++            if (show) {
++                pool = championships.filter(c => c.show === show);
++            } else if (poolTag) {
++                const pools = poolTag.split(',').filter(Boolean);
++                pool = championships.filter(c => pools.includes(c.show));
++            } else {
++                pool = championships;
++            }
++            pool.forEach(c => {
++                const o = document.createElement('option');
++                o.value = c.id;
++                o.textContent = `${c.name} — ${c.show} (${c.holder})`;
++                o.dataset.holder = c.holder;
++                sel.appendChild(o);
+             });
+             if (selectedId) sel.value = selectedId;
+         }
+ 
+-        // Auto-add champion for main event matches
++        // Auto-add champion for main event matches; filter women's pool if applicable (#24)
+         function onMEChampionshipSelected() {
+             const champSel = document.getElementById('meMatchChampionship');
+             const selectedOption = champSel.options[champSel.selectedIndex];
+             const holder = selectedOption.dataset.holder;
+-            
++            const champName = selectedOption.textContent.toLowerCase();
++            const isWomens = WOMENS_KEYWORDS.some(kw => champName.includes(kw));
++            const type = document.getElementById('meMatchType').value;
++            const poolTag = document.getElementById('meMatchPoolTag').value;
++
++            if (isWomens) {
++                buildMEMatchSlots(ME_MATCH_SLOTS[type] || 2, poolTag, true);
++            }
++
+             if (holder && holder !== 'Vacant') {
+-                // Set first participant to champion
+-                const p1 = document.getElementById('meMP1');
+-                if (p1) {
+-                    // Find the champion in the dropdown
+-                    for (let i = 0; i < p1.options.length; i++) {
+-                        if (p1.options[i].value === holder) {
+-                            p1.value = holder;
+-                            break;
+-                        }
+-                    }
+-                }
++                setTimeout(() => {
++                    const p1 = document.getElementById('meMP1');
++                    if (p1) for (let i = 0; i < p1.options.length; i++) { if (p1.options[i].value === holder) { p1.value = holder; break; } }
++                }, 0);
+             }
+         }
+ 
+@@ -2357,8 +2652,14 @@
+             try {
+                 const res = await fetch(url, { method, headers:{'Content-Type':'application/json'},
+                     body: JSON.stringify({show, type, category, participant1:p1, participant2:p2, participant3:p3, participant4:p4, participant5:p5, participant6:p6, participant7:p7, participant8:p8, date, result, winner, notes, championshipId:champId, isImportant:1}) });
+-                if (res.ok) { closeModal('meMatchModal'); await loadMatches(); }
+-                else alert('Error saving match');
++                if (res.ok) {
++                    // Auto title change
++                    if (result === 'Completed' && winner && champId) {
++                        await autoUpdateChampionship(champId, winner, date);
++                    }
++                    closeModal('meMatchModal');
++                    await loadMatches();
++                } else alert('Error saving match');
+             } catch(err) { alert('Error saving match'); }
+         }
+ 
+@@ -2513,32 +2814,56 @@
+             'Battle Royal': 4
+         };
+ 
+-        function buildParticipantSlots(count, show) {
+-            const type = document.getElementById('matchType').value;
++        // Returns wrestler pool filtered by show/type; applies women's filter if isWomens=true
++        function getParticipantPool(show, type, isWomens = false) {
+             const showData = shows.find(s => s.name === show);
+             const isCrossShow = CROSS_SHOW_TYPES.has(type);
+             let pool;
+-            let noteText = '⚠️ Cross-show match — all superstars available.';
+-
+             if (showData?.showType === 'Special') {
+                 const eligible = showData.eligibleShows ? showData.eligibleShows.split(',').map(s => s.trim()).filter(Boolean) : [];
+-                pool = eligible.length > 0
+-                    ? wrestlers.filter(w => eligible.includes(w.show))
+-                    : wrestlers;
+-                noteText = `⚠️ Special event: eligible superstars from ${eligible.length > 0 ? eligible.join(', ') : 'all shows'}. Max 3 source brands per match.`;
++                pool = eligible.length > 0 ? wrestlers.filter(w => eligible.includes(w.show)) : wrestlers;
+             } else {
+-                pool = (show && !isCrossShow)
+-                    ? wrestlers.filter(w => w.show === show)
+-                    : wrestlers;
++                pool = (show && !isCrossShow) ? wrestlers.filter(w => w.show === show) : wrestlers;
+             }
++            if (isWomens) pool = pool.filter(w => w.division === "Women's" || (w.gender && w.gender.toLowerCase() === 'female'));
++            return pool;
++        }
++
++        function buildParticipantSlots(count, show, restoreValues) {
++            const type = document.getElementById('matchType').value;
++            const showData = shows.find(s => s.name === show);
++            const isCrossShow = CROSS_SHOW_TYPES.has(type);
++            const pool = getParticipantPool(show, type);
+ 
+             const noteEl = document.getElementById('crossShowNote');
++            let noteText = '⚠️ Cross-show match — all superstars available.';
++            if (showData?.showType === 'Special') {
++                const eligible = showData.eligibleShows ? showData.eligibleShows.split(',').map(s => s.trim()).filter(Boolean) : [];
++                noteText = `⚠️ Special event: eligible superstars from ${eligible.length > 0 ? eligible.join(', ') : 'all shows'}.`;
++            }
+             noteEl.textContent = noteText;
+             noteEl.style.display = (isCrossShow || showData?.showType === 'Special') ? 'block' : 'none';
+ 
+             const grid = document.getElementById('participantsGrid');
+             grid.innerHTML = '';
+ 
++            // Team auto-fill selector (shown for tag match types)
++            const isTagType = ['Two on Two','Two on Two Mixed Tag','Two on Two Tornado Tag','Three on Three','Three on Three Tornado Tag','Four on Four','Triple Threat Tornado Tag','4-Way Tornado Tag'].includes(type);
++            if (isTagType) {
++                const teams = TEAMS.filter(t => t.members.some(m => pool.find(w => w.name === m)));
++                if (teams.length > 0) {
++                    const teamsHtml = `<div class="form-group" style="background:rgba(204,0,0,0.07);border:1px solid rgba(204,0,0,0.25);border-radius:6px;padding:10px 14px;margin-bottom:12px;">
++                        <label>🏷️ Quick Team Select (auto-fills participants)</label>
++                        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
++                            ${teams.map((t,i) => `<button type="button" class="btn btn-secondary" style="font-size:0.8em;padding:5px 12px;" onclick="autoFillTeam(${i}, '${type}', ${count}, '${show}')">${t.name}</button>`).join('')}
++                        </div>
++                    </div>`;
++                    grid.insertAdjacentHTML('afterbegin', teamsHtml);
++                    // Store teams in a scoped var accessible by autoFillTeam
++                    grid._availableTeams = teams;
++                }
++            }
++
+             // Render in rows of 2
+             for (let i = 0; i < count; i += 2) {
+                 const row = document.createElement('div');
+@@ -2556,12 +2881,40 @@
+                             </select>
+                         </div>`;
+                 }
+-                // Odd count last row: fill with empty div for layout
+-                if (count % 2 !== 0 && i + 2 > count) {
+-                    row.innerHTML += '<div class="form-group"></div>';
+-                }
++                if (count % 2 !== 0 && i + 2 > count) row.innerHTML += '<div class="form-group"></div>';
+                 grid.appendChild(row);
+             }
++
++            if (restoreValues) {
++                restoreValues.forEach((p, i) => { const el = document.getElementById(`matchP${i+1}`); if (el && p) el.value = p; });
++            }
++        }
++
++        // Teams carousel — cycles through selected teams filling slots sequentially
++        let _teamFillSlot = 0;
++        function autoFillTeam(teamIndexInAvailable, type, count, show) {
++            const grid = document.getElementById('participantsGrid');
++            const teams = grid._availableTeams;
++            if (!teams) return;
++            const team = teams[teamIndexInAvailable];
++            if (!team) return;
++            const pool = getParticipantPool(show, type);
++            const slotsPerTeam = {
++                'Two on Two': 2, 'Two on Two Mixed Tag': 2, 'Two on Two Tornado Tag': 2,
++                'Three on Three': 3, 'Three on Three Tornado Tag': 3,
++                'Four on Four': 4, 'Triple Threat Tornado Tag': 2, '4-Way Tornado Tag': 2
++            };
++            const teamSize = slotsPerTeam[type] || 2;
++            // Find first empty slot group or advance to next group
++            let startSlot = _teamFillSlot;
++            if (startSlot + teamSize > count) startSlot = 0;
++            const members = team.members.filter(m => pool.find(w => w.name === m)).slice(0, teamSize);
++            members.forEach((name, i) => {
++                const sel = document.getElementById(`matchP${startSlot + i + 1}`);
++                if (sel) sel.value = name;
++            });
++            _teamFillSlot = startSlot + teamSize;
++            if (_teamFillSlot >= count) _teamFillSlot = 0;
+         }
+ 
+         const DAY_INDEX = { Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6, Sunday: 0 };
+@@ -2581,7 +2934,9 @@
+             const type = document.getElementById('matchType').value;
+             const show = document.getElementById('matchShow').value;
+             const count = MATCH_SLOTS[type] || 2;
++            _teamFillSlot = 0;
+             buildParticipantSlots(count, show);
++            applyTypeCategoryValidation(type, 'matchCategory');
+             if (show) {
+                 const showData = shows.find(s => s.name === show);
+                 if (showData && showData.day) {
+@@ -2606,22 +2961,35 @@
+             if (selectedId) sel.value = selectedId;
+         }
+ 
+-        // Auto-add champion when championship is selected
++        // Auto-add champion when championship is selected; also filter pool if women's title
+         function onChampionshipSelected() {
+             const champSel = document.getElementById('matchChampionship');
+             const selectedOption = champSel.options[champSel.selectedIndex];
+             const holder = selectedOption.dataset.holder;
+-            
++            const champName = selectedOption.textContent.toLowerCase();
++            const isWomens = WOMENS_KEYWORDS.some(kw => champName.includes(kw));
++
++            if (isWomens) {
++                // Rebuild participant slots filtered to women's division
++                const type = document.getElementById('matchType').value;
++                const show = document.getElementById('matchShow').value;
++                const count = MATCH_SLOTS[type] || 2;
++                const pool = getParticipantPool(show, type, true);
++                const grid = document.getElementById('participantsGrid');
++                grid.querySelectorAll('select[id^="matchP"]').forEach((sel, idx) => {
++                    const num = idx + 1;
++                    const cur = sel.value;
++                    sel.innerHTML = `<option value="">Select Superstar</option>` +
++                        pool.map(w => `<option value="${w.name}">${w.name} (${w.show})</option>`).join('');
++                    if (cur) sel.value = cur;
++                });
++            }
++
+             if (holder && holder !== 'Vacant') {
+-                // Set first participant to champion
+                 const p1 = document.getElementById('matchP1');
+                 if (p1) {
+-                    // Find the champion in the dropdown
+                     for (let i = 0; i < p1.options.length; i++) {
+-                        if (p1.options[i].value === holder) {
+-                            p1.value = holder;
+-                            break;
+-                        }
++                        if (p1.options[i].value === holder) { p1.value = holder; break; }
+                     }
+                 }
+             }
+@@ -2687,8 +3055,8 @@
+             document.getElementById('matchWinner').innerHTML = '<option value="">No Winner Yet</option>';
+             document.getElementById('matchChampionship').innerHTML = '<option value="">No Championship</option>';
+             document.getElementById('matchIsImportant').checked = false;
+-            document.getElementById('matchIsImportant').checked = false;
+             document.querySelector('#matchModal .modal-header h2').textContent = 'Schedule Match';
++            _teamFillSlot = 0;
+             buildParticipantSlots(2, '');
+             openModal('matchModal');
+         }
+@@ -2706,19 +3074,12 @@
+             document.getElementById('matchIsImportant').checked = !!m.isImportant;
+             document.querySelector('#matchModal .modal-header h2').textContent = 'Edit Match';
+             const count = MATCH_SLOTS[m.type] || 2;
+-            buildParticipantSlots(count, m.show);
+-            
+-            // Wait for DOM to update, then set participant values
+-            setTimeout(() => {
+-                const parts = [m.participant1, m.participant2, m.participant3, m.participant4, m.participant5, m.participant6, m.participant7, m.participant8];
+-                parts.forEach((p, i) => {
+-                    const el = document.getElementById(`matchP${i + 1}`);
+-                    if (el && p) el.value = p;
+-                });
+-            }, 0);
+-            
++            const restoreValues = [m.participant1, m.participant2, m.participant3, m.participant4, m.participant5, m.participant6, m.participant7, m.participant8];
++            _teamFillSlot = 0;
++            buildParticipantSlots(count, m.show, restoreValues);
++            applyTypeCategoryValidation(m.type, 'matchCategory');
+             populateMatchChampionships(m.show, m.championshipId);
+-            const editParts = [m.participant1, m.participant2, m.participant3, m.participant4, m.participant5, m.participant6, m.participant7, m.participant8].filter(Boolean);
++            const editParts = restoreValues.filter(Boolean);
+             if (m.result === 'Completed') populateMatchWinner(editParts, m.winner);
+             else document.getElementById('matchWinner').innerHTML = '<option value="">No Winner Yet</option>';
+             openModal('matchModal');
+@@ -2753,9 +3114,15 @@
+                     body: JSON.stringify({ show, category, type, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant })
+                 });
+                 if (res.ok) {
++                    // Auto title change
++                    if (result === 'Completed' && winner && championshipId) {
++                        await autoUpdateChampionship(championshipId, winner, date);
++                    }
+                     closeModal('matchModal');
+-                    loadMatches();
+-                    alert(isEdit ? 'Match updated successfully!' : 'Match scheduled successfully!');
++                    // Auto-select the show filter
++                    document.getElementById('matchShowFilter').value = show;
++                    await loadMatches();
++                    filterMatches(); // Apply filter immediately
+                 } else {
+                     alert('Error saving match');
+                 }

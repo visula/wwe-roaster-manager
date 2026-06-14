@@ -96,9 +96,66 @@ class DatabaseManager {
       this.db.exec(`CREATE TABLE IF NOT EXISTS teams (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL UNIQUE,
+        show TEXT,
         members TEXT NOT NULL,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
       )`);
+    } else if (teamCols.length && !teamCols.find(c => c.name === 'show')) {
+      this.db.exec(`ALTER TABLE teams ADD COLUMN show TEXT`);
+    }
+
+    // Migrate: remove NOT NULL constraint from wrestlers.show if it exists
+    const wrestlerColDefs = this.db.prepare(`PRAGMA table_info(wrestlers)`).all();
+    const showCol = wrestlerColDefs.find(c => c.name === 'show');
+    if (showCol && showCol.notnull === 1) {
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS wrestlers_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          show TEXT,
+          division TEXT DEFAULT 'Unassigned',
+          status TEXT DEFAULT 'Active',
+          imageUrl TEXT,
+          gender TEXT,
+          overall INTEGER,
+          alignment TEXT,
+          titles TEXT,
+          createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        INSERT INTO wrestlers_new SELECT id,name,show,division,status,imageUrl,gender,overall,alignment,titles,createdAt FROM wrestlers;
+        DROP TABLE wrestlers;
+        ALTER TABLE wrestlers_new RENAME TO wrestlers;
+      `);
+      console.log('✅ Migrated wrestlers.show to nullable');
+    }
+
+    // Migrate: add wrestler_shows junction table
+    const junctionCols = this.db.prepare(`PRAGMA table_info(wrestler_shows)`).all();
+    if (!junctionCols.length) {
+      this.db.exec(`CREATE TABLE IF NOT EXISTS wrestler_shows (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        wrestlerId INTEGER NOT NULL,
+        showName TEXT NOT NULL,
+        isPrimary INTEGER DEFAULT 0,
+        FOREIGN KEY (wrestlerId) REFERENCES wrestlers(id) ON DELETE CASCADE,
+        UNIQUE(wrestlerId, showName)
+      )`);
+      console.log('✅ Created wrestler_shows junction table');
+      
+      // Migrate existing wrestlers to junction table
+      const existingWrestlers = this.db.prepare('SELECT id, show FROM wrestlers WHERE show IS NOT NULL AND show != ""').all();
+      if (existingWrestlers.length > 0) {
+        console.log(`📦 Migrating ${existingWrestlers.length} existing wrestlers to junction table...`);
+        const insertJunction = this.db.prepare('INSERT OR IGNORE INTO wrestler_shows (wrestlerId, showName, isPrimary) VALUES (?, ?, 1)');
+        for (const w of existingWrestlers) {
+          try {
+            insertJunction.run(w.id, w.show);
+          } catch (e) {
+            console.error(`⚠️ Error migrating wrestler ${w.id}:`, e.message);
+          }
+        }
+        console.log('✅ Migration complete');
+      }
     }
 
     this.db.exec(`
@@ -115,7 +172,7 @@ class DatabaseManager {
       CREATE TABLE IF NOT EXISTS wrestlers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
-        show TEXT NOT NULL,
+        show TEXT,
         division TEXT DEFAULT 'Unassigned',
         status TEXT DEFAULT 'Active',
         imageUrl TEXT,
@@ -123,8 +180,7 @@ class DatabaseManager {
         overall INTEGER,
         alignment TEXT,
         titles TEXT,
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (show) REFERENCES shows(name)
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
       CREATE TABLE IF NOT EXISTS matches (
@@ -196,26 +252,27 @@ class DatabaseManager {
     `);
 
     const shows = [
-      { name: 'RAW',          abbr: 'RAW', day: 'Monday' },
-      { name: 'SmackDown',    abbr: 'SMA', day: 'Friday' },
-      { name: 'NXT',          abbr: 'NXT', day: 'Thursday' },
-      { name: 'TNA',          abbr: 'TNA', day: 'Tuesday' },
-      { name: 'AAA',          abbr: 'AAA', day: 'Wednesday' },
-      { name: 'AEW',          abbr: 'AEW', day: 'Thursday' },
-      { name: 'Legends',      abbr: 'LEG', day: null },
-      { name: 'Ultra Legends',abbr: 'ULT', day: null },
-      { name: 'Unassigned',   abbr: 'UNA', day: null },
-      { name: 'DLC/AAA',      abbr: 'DLC', day: null },
-      { name: 'Other WWE',    abbr: 'OTH', day: null },
+      { name: 'RAW',          abbr: 'RAW', day: 'Monday', matchLimit: 7 },
+      { name: 'SmackDown',    abbr: 'SMA', day: 'Friday', matchLimit: 7 },
+      { name: 'NXT',          abbr: 'NXT', day: 'Thursday', matchLimit: 6 },
+      { name: 'TNA',          abbr: 'TNA', day: 'Tuesday', matchLimit: 6 },
+      { name: 'AAA',          abbr: 'AAA', day: 'Wednesday', matchLimit: 5 },
+      { name: 'AEW',          abbr: 'AEW', day: 'Thursday', matchLimit: 7 },
+      { name: 'Legends',      abbr: 'LEG', day: null, matchLimit: null },
+      { name: 'Ultra Legends',abbr: 'ULT', day: null, matchLimit: null },
+      { name: 'Unassigned',   abbr: 'UNA', day: null, matchLimit: null },
+      { name: 'DLC/AAA',      abbr: 'DLC', day: null, matchLimit: null },
+      { name: 'Other WWE',    abbr: 'OTH', day: null, matchLimit: null },
     ];
     for (const show of shows) {
       const id = show.name.toLowerCase().replace(/\s/g, '').replace(/\//g, '');
       try {
-        this.db.prepare(`INSERT INTO shows (id, name, abbreviation, day) VALUES (?, ?, ?, ?)`)
-          .run(id, show.name, show.abbr, show.day);
+        this.db.prepare(`INSERT INTO shows (id, name, abbreviation, day, matchLimit) VALUES (?, ?, ?, ?, ?)`)
+          .run(id, show.name, show.abbr, show.day, show.matchLimit);
       } catch (e) {
-        // Already exists — update day in case column was just added
-        this.db.prepare(`UPDATE shows SET day = ? WHERE name = ?`).run(show.day, show.name);
+        // Already exists — update day and matchLimit in case columns were just added
+        this.db.prepare(`UPDATE shows SET day = ?, matchLimit = ? WHERE name = ?`)
+          .run(show.day, show.matchLimit, show.name);
       }
     }
 
@@ -242,6 +299,36 @@ class DatabaseManager {
     return this.db.prepare('SELECT COUNT(*) as count FROM matches WHERE show = ?').get(show).count;
   }
 
+  getMatchesCountByShowAndDate(show, date) {
+    const dateOnly = date.split('T')[0];
+    return this.db.prepare(
+      'SELECT COUNT(*) as count FROM matches WHERE show = ? AND DATE(date) = DATE(?)'
+    ).get(show, dateOnly).count;
+  }
+
+  canAddMatch(show, date, excludeMatchId = null) {
+    const showData = this.getShowByName(show);
+    if (!showData || !showData.matchLimit) return { canAdd: true };
+    
+    const dateOnly = date.split('T')[0];
+    let count;
+    if (excludeMatchId) {
+      count = this.db.prepare(
+        'SELECT COUNT(*) as count FROM matches WHERE show = ? AND DATE(date) = DATE(?) AND id != ?'
+      ).get(show, dateOnly, excludeMatchId).count;
+    } else {
+      count = this.db.prepare(
+        'SELECT COUNT(*) as count FROM matches WHERE show = ? AND DATE(date) = DATE(?)'
+      ).get(show, dateOnly).count;
+    }
+    
+    return {
+      canAdd: count < showData.matchLimit,
+      current: count,
+      limit: showData.matchLimit
+    };
+  }
+
   getWrestlerShowsByNames(names) {
     if (!names || names.length === 0) return [];
     const placeholders = names.map(() => '?').join(',');
@@ -266,28 +353,69 @@ class DatabaseManager {
 
   // ==================== WRESTLERS ====================
   getAllWrestlers() {
-    return this.db.prepare('SELECT * FROM wrestlers ORDER BY name').all();
+    const wrestlers = this.db.prepare('SELECT * FROM wrestlers ORDER BY name').all();
+    // Attach shows for each wrestler
+    return wrestlers.map(w => {
+      const shows = this.db.prepare(
+        'SELECT showName, isPrimary FROM wrestler_shows WHERE wrestlerId = ? ORDER BY isPrimary DESC, showName'
+      ).all(w.id);
+      return { ...w, shows: shows.map(s => s.showName), primaryShow: shows.find(s => s.isPrimary)?.showName || shows[0]?.showName };
+    });
   }
 
   getWrestlersByShow(show) {
-    return this.db.prepare('SELECT * FROM wrestlers WHERE show = ? ORDER BY name').all(show);
+    const wrestlerIds = this.db.prepare(
+      'SELECT wrestlerId FROM wrestler_shows WHERE showName = ?'
+    ).all(show).map(r => r.wrestlerId);
+    if (wrestlerIds.length === 0) return [];
+    const placeholders = wrestlerIds.map(() => '?').join(',');
+    const wrestlers = this.db.prepare(`SELECT * FROM wrestlers WHERE id IN (${placeholders}) ORDER BY name`).all(...wrestlerIds);
+    return wrestlers.map(w => {
+      const shows = this.db.prepare(
+        'SELECT showName, isPrimary FROM wrestler_shows WHERE wrestlerId = ? ORDER BY isPrimary DESC, showName'
+      ).all(w.id);
+      return { ...w, shows: shows.map(s => s.showName), primaryShow: shows.find(s => s.isPrimary)?.showName || shows[0]?.showName };
+    });
   }
 
   getWrestlerById(id) {
-    return this.db.prepare('SELECT * FROM wrestlers WHERE id = ?').get(id);
+    const wrestler = this.db.prepare('SELECT * FROM wrestlers WHERE id = ?').get(id);
+    if (!wrestler) return null;
+    const shows = this.db.prepare(
+      'SELECT showName, isPrimary FROM wrestler_shows WHERE wrestlerId = ? ORDER BY isPrimary DESC, showName'
+    ).all(id);
+    return { ...wrestler, shows: shows.map(s => s.showName), primaryShow: shows.find(s => s.isPrimary)?.showName || shows[0]?.showName };
   }
 
-  addWrestler(name, show, division, status, imageUrl, gender, overall, alignment, titles) {
+  addWrestler(name, shows, division, status, imageUrl, gender, overall, alignment, titles) {
+    const showList = Array.isArray(shows) ? shows : [shows];
+    const primaryShow = showList[0] || null;
     const result = this.db.prepare(
       `INSERT INTO wrestlers (name, show, division, status, imageUrl, gender, overall, alignment, titles) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(name, show, division, status, imageUrl, gender, overall, alignment, titles);
-    return result.lastInsertRowid;
+    ).run(name, primaryShow, division, status, imageUrl, gender, overall, alignment, titles);
+    const wrestlerId = result.lastInsertRowid;
+    // Add show associations
+    showList.forEach((show, idx) => {
+      this.db.prepare(
+        'INSERT INTO wrestler_shows (wrestlerId, showName, isPrimary) VALUES (?, ?, ?)'
+      ).run(wrestlerId, show, idx === 0 ? 1 : 0);
+    });
+    return wrestlerId;
   }
 
-  updateWrestler(id, name, show, division, status, imageUrl, gender, overall, alignment, titles) {
+  updateWrestler(id, name, shows, division, status, imageUrl, gender, overall, alignment, titles) {
+    const showList = Array.isArray(shows) ? shows : [shows];
+    const primaryShow = showList[0] || null;
     this.db.prepare(
       `UPDATE wrestlers SET name = ?, show = ?, division = ?, status = ?, imageUrl = ?, gender = ?, overall = ?, alignment = ?, titles = ? WHERE id = ?`
-    ).run(name, show, division, status, imageUrl, gender, overall, alignment, titles, id);
+    ).run(name, primaryShow, division, status, imageUrl, gender, overall, alignment, titles, id);
+    // Update show associations
+    this.db.prepare('DELETE FROM wrestler_shows WHERE wrestlerId = ?').run(id);
+    showList.forEach((show, idx) => {
+      this.db.prepare(
+        'INSERT INTO wrestler_shows (wrestlerId, showName, isPrimary) VALUES (?, ?, ?)'
+      ).run(id, show, idx === 0 ? 1 : 0);
+    });
   }
 
   deleteWrestler(id) {
@@ -320,6 +448,10 @@ class DatabaseManager {
   }
 
   addMatch(show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant) {
+    const limitCheck = this.canAddMatch(show, date);
+    if (!limitCheck.canAdd) {
+      throw new Error(`Match limit reached for ${show} on ${date.split('T')[0]}. Limit: ${limitCheck.limit}, Current: ${limitCheck.current}`);
+    }
     const result_res = this.db.prepare(
       `INSERT INTO matches (show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -328,6 +460,10 @@ class DatabaseManager {
   }
 
   updateMatch(id, show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant) {
+    const limitCheck = this.canAddMatch(show, date, id);
+    if (!limitCheck.canAdd) {
+      throw new Error(`Match limit reached for ${show} on ${date.split('T')[0]}. Limit: ${limitCheck.limit}, Current: ${limitCheck.current}`);
+    }
     this.db.prepare(
       `UPDATE matches SET show = ?, type = ?, category = ?, participant1 = ?, participant2 = ?, participant3 = ?, participant4 = ?, participant5 = ?, participant6 = ?, participant7 = ?, participant8 = ?, date = ?, result = ?, winner = ?, notes = ?, championshipId = ?, isImportant = ? WHERE id = ?`
     ).run(show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId || null, isImportant ? 1 : 0, id);
@@ -404,19 +540,19 @@ class DatabaseManager {
 
   // ==================== TEAMS ====================
   getAllTeams() {
-    return this.db.prepare('SELECT * FROM teams ORDER BY name').all();
+    return this.db.prepare('SELECT * FROM teams ORDER BY show, name').all();
   }
 
-  addTeam(name, members) {
+  addTeam(name, show, members) {
     const result = this.db.prepare(
-      `INSERT INTO teams (name, members) VALUES (?, ?)`
-    ).run(name, Array.isArray(members) ? members.join(',') : members);
+      `INSERT INTO teams (name, show, members) VALUES (?, ?, ?)`
+    ).run(name, show || null, Array.isArray(members) ? members.join(',') : members);
     return result.lastInsertRowid;
   }
 
-  updateTeam(id, name, members) {
-    this.db.prepare(`UPDATE teams SET name=?, members=? WHERE id=?`)
-      .run(name, Array.isArray(members) ? members.join(',') : members, id);
+  updateTeam(id, name, show, members) {
+    this.db.prepare(`UPDATE teams SET name=?, show=?, members=? WHERE id=?`)
+      .run(name, show || null, Array.isArray(members) ? members.join(',') : members, id);
   }
 
   deleteTeam(id) {

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WWE Universe Manager - Connection Test</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #1a1a1a; color: #fff; }
+        .test { margin: 10px 0; padding: 15px; border-radius: 5px; }
+        .success { background: rgba(34, 197, 94, 0.2); border: 1px solid #22c55e; }
+        .error { background: rgba(220, 38, 38, 0.2); border: 1px solid #dc2626; }
+        .info { background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; }
+        h1 { color: #cc0000; }
+        button { background: #cc0000; color: white; padding: 10px 20px; border: none; cursor: pointer; border-radius: 5px; margin: 10px 5px; }
+        button:hover { background: #990000; }
+        pre { background: #000; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🎭 WWE Universe Manager - Connection Test</h1>
+    
+    <div id="results"></div>
+    
+    <button onclick="runTests()">Run Tests</button>
+    <button onclick="location.href='/'">Go to Main App</button>
+    
+    <script>
+        const API = 'http://localhost:5000/api';
+        
+        async function runTests() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<div class="test info">Running tests...</div>';
+            let html = '';
+            
+            // Test 1: Server Connection
+            try {
+                const res = await fetch(API + '/wrestlers');
+                if (res.ok) {
+                    const data = await res.json();
+                    html += `<div class="test success">
+                        ✅ SERVER CONNECTION: OK<br>
+                        Found ${data.length} wrestlers
+                    </div>`;
+                } else {
+                    html += `<div class="test error">❌ SERVER CONNECTION: Failed (Status: ${res.status})</div>`;
+                }
+            } catch (err) {
+                html += `<div class="test error">❌ SERVER CONNECTION: ${err.message}</div>`;
+            }
+            
+            // Test 2: Shows
+            try {
+                const res = await fetch(API + '/shows');
+                const data = await res.json();
+                html += `<div class="test success">✅ SHOWS: ${data.length} found</div>`;
+            } catch (err) {
+                html += `<div class="test error">❌ SHOWS: ${err.message}</div>`;
+            }
+            
+            // Test 3: Matches
+            try {
+                const res = await fetch(API + '/matches');
+                const data = await res.json();
+                html += `<div class="test success">✅ MATCHES: ${data.length} found</div>`;
+            } catch (err) {
+                html += `<div class="test error">❌ MATCHES: ${err.message}</div>`;
+            }
+            
+            // Test 4: Championships
+            try {
+                const res = await fetch(API + '/championships');
+                const data = await res.json();
+                html += `<div class="test success">✅ CHAMPIONSHIPS: ${data.length} found</div>`;
+            } catch (err) {
+                html += `<div class="test error">❌ CHAMPIONSHIPS: ${err.message}</div>`;
+            }
+            
+            // Test 5: Dashboard Stats
+            try {
+                const res = await fetch(API + '/dashboard/stats');
+                const data = await res.json();
+                html += `<div class="test success">
+                    ✅ DASHBOARD STATS: OK<br>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                </div>`;
+            } catch (err) {
+                html += `<div class="test error">❌ DASHBOARD STATS: ${err.message}</div>`;
+            }
+            
+            results.innerHTML = html;
+        }
+        
+        // Auto-run on load
+        window.onload = runTests;
+    </script>
+</body>
+</html>
