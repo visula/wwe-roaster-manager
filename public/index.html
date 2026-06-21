@@ -443,7 +443,7 @@
         <!-- Matches Tab -->
         <div id="matches" class="tab-content">
             <div class="section-header">
-                <h2>Matches</h2>
+                <h2>Matches by Show & Date</h2>
                 <button class="btn btn-primary" onclick="openAddMatchModal()">+ Schedule Match</button>
             </div>
 
@@ -458,26 +458,8 @@
                 </select>
             </div>
 
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th data-table="matches" data-col="date">Date</th>
-                            <th data-table="matches" data-col="show">Show</th>
-                            <th data-table="matches" data-col="category">Category</th>
-                            <th data-table="matches" data-col="type">Type</th>
-                            <th>Participants</th>
-                            <th>Championship</th>
-                            <th>Storyline</th>
-                            <th data-table="matches" data-col="result">Status</th>
-                            <th data-table="matches" data-col="winner">Winner</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="matchesTable">
-                        <tr><td colspan="7" class="no-data">Loading matches...</td></tr>
-                    </tbody>
-                </table>
+            <div id="matchesGroupedContainer" style="margin-top:20px;">
+                <p class="no-data">Loading matches...</p>
             </div>
         </div>
 
@@ -2639,37 +2621,97 @@
         }
 
         function displayMatches(data) {
-            // Filter out event headers and main event matches from regular matches display
             const regularMatches = data.filter(m => {
                 const notes = m.notes || '';
                 return !notes.includes('[MEEVENT]') && !notes.includes('[MEMATCH:');
             });
-            const html = regularMatches.length > 0
-                ? regularMatches.map(m => {
-                    const champ = m.championshipId ? championships.find(c => c.id === m.championshipId) : null;
-                    const storylineTag = m.isImportant ? '<span class="badge badge-danger">⭐ Storyline</span>' : '-';
-                    const category = m.category ? `<span class="badge badge-info">${m.category}</span>` : '-';
-                    const participants = [m.participant1, m.participant2, m.participant3, m.participant4, m.participant5, m.participant6, m.participant7, m.participant8].filter(Boolean).join(' vs ');
-                    return `<tr>
-                        <td>${new Date(m.date).toLocaleDateString()}</td>
-                        <td>${m.show}</td>
-                        <td>${category}</td>
-                        <td>${m.type}</td>
-                        <td>${participants}</td>
-                        <td>${champ ? `<span class="badge badge-info">${champ.name}</span>` : '-'}</td>
-                        <td>${storylineTag}</td>
-                        <td><span class="badge ${m.result === 'Pending' ? 'badge-warning' : 'badge-success'}">${m.result}</span></td>
-                        <td>${m.winner || '-'}</td>
-                        <td>
-                            <div class="action-buttons">
-                                <button class="btn btn-secondary" onclick="editMatch(${m.id})">Edit</button>
-                                <button class="btn btn-danger" onclick="deleteMatch(${m.id})">Delete</button>
-                            </div>
-                        </td>
-                    </tr>`;
-                }).join('')
-                : '<tr><td colspan="10" class="no-data">No matches scheduled</td></tr>';
-            document.getElementById('matchesTable').innerHTML = html;
+
+            if (regularMatches.length === 0) {
+                document.getElementById('matchesGroupedContainer').innerHTML = '<p class="no-data">No matches scheduled</p>';
+                return;
+            }
+
+            // Group by show, then by date
+            const grouped = {};
+            regularMatches.forEach(m => {
+                const showName = m.show || 'Unknown';
+                const dateKey = m.date ? m.date.split('T')[0] : 'No Date';
+                
+                if (!grouped[showName]) grouped[showName] = {};
+                if (!grouped[showName][dateKey]) grouped[showName][dateKey] = [];
+                grouped[showName][dateKey].push(m);
+            });
+
+            let html = '';
+            Object.keys(grouped).sort().forEach(showName => {
+                const dates = grouped[showName];
+                const showData = shows.find(s => s.name === showName);
+                const matchLimit = showData && showData.matchLimit ? showData.matchLimit : null;
+                
+                html += `<div class="card" style="margin-bottom:20px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                        <h3 style="color:var(--primary); margin:0;">📺 ${showName}</h3>
+                        ${matchLimit ? `<span class="badge badge-info">Limit: ${matchLimit} matches/episode</span>` : ''}
+                    </div>`;
+                
+                Object.keys(dates).sort().reverse().forEach(dateKey => {
+                    const matches = dates[dateKey];
+                    const matchCount = matches.length;
+                    const overLimit = matchLimit && matchCount > matchLimit;
+                    
+                    html += `<div style="margin-bottom:20px; border-left:3px solid var(--primary); padding-left:15px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <h4 style="color:var(--text); margin:0;">📅 ${new Date(dateKey + 'T00:00').toLocaleDateString('en-US', {weekday:'long', year:'numeric', month:'short', day:'numeric'})}</h4>
+                            <span class="badge ${overLimit ? 'badge-danger' : 'badge-success'}" style="font-size:0.9em;">${matchCount} ${matchCount === 1 ? 'match' : 'matches'}</span>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="width:40px;">#</th>
+                                        <th>Category</th>
+                                        <th>Type</th>
+                                        <th>Participants</th>
+                                        <th>Championship</th>
+                                        <th>Storyline</th>
+                                        <th>Status</th>
+                                        <th>Winner</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>`;
+                    
+                    matches.forEach((m, idx) => {
+                        const champ = m.championshipId ? championships.find(c => c.id === m.championshipId) : null;
+                        const storylineTag = m.isImportant ? '<span class="badge badge-danger">⭐ Storyline</span>' : '-';
+                        const category = m.category ? `<span class="badge badge-info">${m.category}</span>` : '-';
+                        const participants = [m.participant1, m.participant2, m.participant3, m.participant4, m.participant5, m.participant6, m.participant7, m.participant8].filter(Boolean).join(' vs ');
+                        
+                        html += `<tr>
+                            <td style="text-align:center; font-weight:bold; color:var(--text-muted);">${idx + 1}</td>
+                            <td>${category}</td>
+                            <td>${m.type}</td>
+                            <td>${participants}</td>
+                            <td>${champ ? `<span class="badge badge-info">${champ.name}</span>` : '-'}</td>
+                            <td>${storylineTag}</td>
+                            <td><span class="badge ${m.result === 'Pending' ? 'badge-warning' : 'badge-success'}">${m.result}</span></td>
+                            <td>${m.winner || '-'}</td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="btn btn-secondary" onclick="editMatch(${m.id})">Edit</button>
+                                    <button class="btn btn-danger" onclick="deleteMatch(${m.id})">Delete</button>
+                                </div>
+                            </td>
+                        </tr>`;
+                    });
+                    
+                    html += `</tbody></table></div></div>`;
+                });
+                
+                html += `</div>`;
+            });
+
+            document.getElementById('matchesGroupedContainer').innerHTML = html;
         }
 
         function filterMatches() {
