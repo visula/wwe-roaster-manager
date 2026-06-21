@@ -31,21 +31,21 @@ app.get('/api/shows', (req, res) => {
 });
 
 app.post('/api/shows', (req, res) => {
-  const { name, abbreviation, day, showType, eligibleShows, matchLimit } = req.body;
+  const { name, abbreviation, day, showType, eligibleShows, matchLimit, nextEpisodeDate } = req.body;
   if (!name || !abbreviation) return res.status(400).json({ error: 'Name and abbreviation are required' });
   try {
-    const id = db.addShow(name, abbreviation, day || null, showType || 'Weekly', Array.isArray(eligibleShows) ? eligibleShows.join(',') : (eligibleShows || null), matchLimit || null);
-    res.json({ id, name, abbreviation, day, showType, eligibleShows, matchLimit });
+    const id = db.addShow(name, abbreviation, day || null, showType || 'Weekly', Array.isArray(eligibleShows) ? eligibleShows.join(',') : (eligibleShows || null), matchLimit || null, nextEpisodeDate || null);
+    res.json({ id, name, abbreviation, day, showType, eligibleShows, matchLimit, nextEpisodeDate });
   } catch (e) {
     res.status(400).json({ error: 'Show name already exists' });
   }
 });
 
 app.put('/api/shows/:id', (req, res) => {
-  const { name, abbreviation, day, showType, eligibleShows, matchLimit } = req.body;
+  const { name, abbreviation, day, showType, eligibleShows, matchLimit, nextEpisodeDate } = req.body;
   if (!name || !abbreviation) return res.status(400).json({ error: 'Name and abbreviation are required' });
   try {
-    db.updateShow(req.params.id, name, abbreviation, day || null, showType || 'Weekly', Array.isArray(eligibleShows) ? eligibleShows.join(',') : (eligibleShows || null), matchLimit || null);
+    db.updateShow(req.params.id, name, abbreviation, day || null, showType || 'Weekly', Array.isArray(eligibleShows) ? eligibleShows.join(',') : (eligibleShows || null), matchLimit || null, nextEpisodeDate || null);
     res.json({ success: true });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -55,6 +55,59 @@ app.put('/api/shows/:id', (req, res) => {
 app.delete('/api/shows/:id', (req, res) => {
   db.deleteShow(req.params.id);
   res.json({ success: true });
+});
+
+app.post('/api/shows/apply-season-start', (req, res) => {
+  const { startDate } = req.body;
+  if (!startDate) return res.status(400).json({ error: 'Start date required' });
+  
+  try {
+    const DAY_INDEX = { Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6, Sunday: 0 };
+    const base = new Date(startDate);
+    const monday = new Date(base);
+    monday.setDate(base.getDate() - ((base.getDay() + 6) % 7));
+    
+    const shows = db.getAllShows();
+    const updated = [];
+    
+    shows.forEach(show => {
+      if (show.day && DAY_INDEX[show.day] !== undefined) {
+        const offset = DAY_INDEX[show.day];
+        const nextDate = new Date(monday);
+        nextDate.setDate(monday.getDate() + (offset === 0 ? 7 : offset) - 1);
+        const nextEpisodeDate = nextDate.toISOString().split('T')[0];
+        
+        db.updateShowNextEpisodeDate(show.id, nextEpisodeDate);
+        updated.push({ show: show.name, date: nextEpisodeDate });
+      }
+    });
+    
+    res.json({ success: true, updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/shows/advance-week', (req, res) => {
+  try {
+    const shows = db.getAllShows();
+    const updated = [];
+    
+    shows.forEach(show => {
+      if (show.nextEpisodeDate) {
+        const currentDate = new Date(show.nextEpisodeDate);
+        currentDate.setDate(currentDate.getDate() + 7);
+        const nextEpisodeDate = currentDate.toISOString().split('T')[0];
+        
+        db.updateShowNextEpisodeDate(show.id, nextEpisodeDate);
+        updated.push({ show: show.name, date: nextEpisodeDate });
+      }
+    });
+    
+    res.json({ success: true, updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ==================== WRESTLERS ====================

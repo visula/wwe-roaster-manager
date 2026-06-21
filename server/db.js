@@ -34,6 +34,9 @@ class DatabaseManager {
     if (cols.length && !cols.find(c => c.name === 'matchLimit')) {
       this.db.exec(`ALTER TABLE shows ADD COLUMN matchLimit INTEGER`);
     }
+    if (cols.length && !cols.find(c => c.name === 'nextEpisodeDate')) {
+      this.db.exec(`ALTER TABLE shows ADD COLUMN nextEpisodeDate TEXT`);
+    }
 
     // Migrate: add championshipId to matches if missing
     const matchCols = this.db.prepare(`PRAGMA table_info(matches)`).all();
@@ -166,7 +169,8 @@ class DatabaseManager {
         day TEXT,
         showType TEXT DEFAULT 'Weekly',
         eligibleShows TEXT,
-        matchLimit INTEGER
+        matchLimit INTEGER,
+        nextEpisodeDate TEXT
       );
 
       CREATE TABLE IF NOT EXISTS wrestlers (
@@ -335,16 +339,20 @@ class DatabaseManager {
     return this.db.prepare(`SELECT name, show FROM wrestlers WHERE name IN (${placeholders})`).all(...names);
   }
 
-  addShow(name, abbreviation, day, showType = 'Weekly', eligibleShows = null, matchLimit = null) {
+  addShow(name, abbreviation, day, showType = 'Weekly', eligibleShows = null, matchLimit = null, nextEpisodeDate = null) {
     const id = name.toLowerCase().replace(/\s/g, '').replace(/\//g, '');
-    this.db.prepare(`INSERT INTO shows (id, name, abbreviation, day, showType, eligibleShows, matchLimit) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .run(id, name, abbreviation, day, showType, eligibleShows, matchLimit);
+    this.db.prepare(`INSERT INTO shows (id, name, abbreviation, day, showType, eligibleShows, matchLimit, nextEpisodeDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(id, name, abbreviation, day, showType, eligibleShows, matchLimit, nextEpisodeDate);
     return id;
   }
 
-  updateShow(id, name, abbreviation, day, showType = 'Weekly', eligibleShows = null, matchLimit = null) {
-    this.db.prepare(`UPDATE shows SET name = ?, abbreviation = ?, day = ?, showType = ?, eligibleShows = ?, matchLimit = ? WHERE id = ?`)
-      .run(name, abbreviation, day, showType, eligibleShows, matchLimit, id);
+  updateShow(id, name, abbreviation, day, showType = 'Weekly', eligibleShows = null, matchLimit = null, nextEpisodeDate = null) {
+    this.db.prepare(`UPDATE shows SET name = ?, abbreviation = ?, day = ?, showType = ?, eligibleShows = ?, matchLimit = ?, nextEpisodeDate = ? WHERE id = ?`)
+      .run(name, abbreviation, day, showType, eligibleShows, matchLimit, nextEpisodeDate, id);
+  }
+
+  updateShowNextEpisodeDate(id, nextEpisodeDate) {
+    this.db.prepare(`UPDATE shows SET nextEpisodeDate = ? WHERE id = ?`).run(nextEpisodeDate, id);
   }
 
   deleteShow(id) {

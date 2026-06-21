@@ -611,8 +611,9 @@
                         <label>Season Start (any date in the week)</label>
                         <input type="date" id="seasonStartDate">
                     </div>
-                    <div class="form-group" style="display:flex;align-items:flex-end;">
+                    <div class="form-group" style="display:flex;align-items:flex-end;gap:10px;">
                         <button class="btn btn-primary" onclick="applySeasonStart()">Apply Start Date</button>
+                        <button class="btn btn-gold" onclick="advanceWeek()">⏩ Advance Week</button>
                     </div>
                 </div>
                 <div id="seasonDatesPreview" style="margin-top:15px;"></div>
@@ -722,12 +723,13 @@
                             <th>Abbreviation</th>
                             <th>Broadcast Day</th>
                             <th>Type</th>
+                            <th>Next Episode</th>
                             <th>Match Limit</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="showsTable">
-                        <tr><td colspan="6" class="no-data">Loading shows...</td></tr>
+                        <tr><td colspan="7" class="no-data">Loading shows...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -1036,6 +1038,44 @@
                     <button type="submit" class="btn btn-success">Save</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Wrestler Profile Modal -->
+    <div id="wrestlerProfileModal" class="modal">
+        <div class="modal-content" style="max-width: 1000px;">
+            <div class="modal-header">
+                <h2 id="profileWrestlerName">Wrestler Profile</h2>
+                <button class="close-btn" onclick="closeModal('wrestlerProfileModal')">&times;</button>
+            </div>
+            <div class="profile-container" style="display:flex; gap:20px; flex-wrap:wrap;">
+                <div class="card" style="flex:1; min-width:280px;">
+                    <h3 style="color:var(--primary); margin-bottom:15px;">📋 Basic Info</h3>
+                    <div id="profileBasicInfo"></div>
+                </div>
+                <div class="card" style="flex:1; min-width:280px;">
+                    <h3 style="color:var(--gold); margin-bottom:15px;">🏆 Championships</h3>
+                    <div id="profileChampionships"></div>
+                </div>
+            </div>
+            <div class="card" style="margin-top:20px;">
+                <h3 style="color:var(--primary); margin-bottom:15px;">🤼 Match History</h3>
+                <div id="profileMatchHistory"></div>
+            </div>
+            <div class="card" style="margin-top:20px;">
+                <h3 style="color:var(--primary); margin-bottom:15px;">👥 Tag Team Partners</h3>
+                <div id="profileTagTeams"></div>
+            </div>
+            <div class="card" style="margin-top:20px;">
+                <h3 style="color:var(--danger); margin-bottom:15px;">⭐ Storylines</h3>
+                <div id="profileStorylines"></div>
+            </div>
+            <div class="card" style="margin-top:20px;">
+                <h3 style="color:var(--warning); margin-bottom:15px;">⚔️ Rivalries <span class="badge" style="background:#555;">Coming Soon</span></h3>
+                <div id="profileRivalries">
+                    <p style="color:var(--text-muted);">Rivalry tracking feature will be available in future updates.</p>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1477,28 +1517,68 @@
         }
 
         // ==================== SEASON SETUP ====================
-        const SHOW_DAYS = { RAW: 1, TNA: 2, AAA: 3, AEW: 4, NXT: 4, SmackDown: 5 };
 
-        function applySeasonStart() {
+        async function applySeasonStart() {
             const val = document.getElementById('seasonStartDate').value;
             if (!val) return alert('Please select a date.');
-            const base = new Date(val);
-            // Get the Monday of that week
-            const monday = new Date(base);
-            monday.setDate(base.getDate() - ((base.getDay() + 6) % 7));
-
-            const preview = [];
-            shows.filter(s => s.day).forEach(s => {
-                const offset = SHOW_DAYS[s.name] ?? DAY_INDEX[s.day];
-                if (offset === undefined) return;
-                const d = new Date(monday);
-                d.setDate(monday.getDate() + (offset === 0 ? 7 : offset) - 1);
-                preview.push(`<tr><td>${s.name}</td><td>${s.day}</td><td><strong>${d.toDateString()}</strong></td></tr>`);
-            });
-
-            document.getElementById('seasonDatesPreview').innerHTML = preview.length
-                ? `<table><thead><tr><th>Show</th><th>Day</th><th>First Episode</th></tr></thead><tbody>${preview.join('')}</tbody></table>`
-                : '<p style="color:#999;">No scheduled shows found. Add shows with broadcast days in the Shows tab.</p>';
+            
+            try {
+                const res = await fetch(`${API}/shows/apply-season-start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ startDate: val })
+                });
+                
+                if (!res.ok) {
+                    alert('Error applying season start date');
+                    return;
+                }
+                
+                // Save to localStorage
+                localStorage.setItem('seasonStartDate', val);
+                
+                const data = await res.json();
+                await loadShows();
+                
+                const preview = data.updated.map(u => 
+                    `<tr><td>${u.show}</td><td><strong>${new Date(u.date).toDateString()}</strong></td></tr>`
+                ).join('');
+                
+                document.getElementById('seasonDatesPreview').innerHTML = preview.length
+                    ? `<p style="color:var(--success);margin-bottom:10px;">✅ Successfully updated ${data.updated.length} show dates!</p><table><thead><tr><th>Show</th><th>Next Episode Date</th></tr></thead><tbody>${preview}</tbody></table>`
+                    : '<p style="color:#999;">No scheduled shows found. Add shows with broadcast days in the Shows tab.</p>';
+            } catch (err) {
+                alert('Error applying season start: ' + err.message);
+            }
+        }
+        
+        async function advanceWeek() {
+            if (!confirm('Advance all show dates by 7 days (one week)?')) return;
+            
+            try {
+                const res = await fetch(`${API}/shows/advance-week`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (!res.ok) {
+                    alert('Error advancing week');
+                    return;
+                }
+                
+                const data = await res.json();
+                await loadShows();
+                
+                const preview = data.updated.map(u => 
+                    `<tr><td>${u.show}</td><td><strong>${new Date(u.date).toDateString()}</strong></td></tr>`
+                ).join('');
+                
+                document.getElementById('seasonDatesPreview').innerHTML = preview.length
+                    ? `<p style="color:var(--success);margin-bottom:10px;">✅ Successfully advanced ${data.updated.length} shows by 1 week!</p><table><thead><tr><th>Show</th><th>Next Episode Date</th></tr></thead><tbody>${preview}</tbody></table>`
+                    : '<p style="color:#999;">No shows with dates found.</p>';
+            } catch (err) {
+                alert('Error advancing week: ' + err.message);
+            }
         }
 
         const DEFAULT_WRESTLERS = [
@@ -2036,6 +2116,14 @@
             });
         }
 
+        // Load saved season start date on page load
+        function loadSeasonStartDate() {
+            const saved = localStorage.getItem('seasonStartDate');
+            if (saved) {
+                document.getElementById('seasonStartDate').value = saved;
+            }
+        }
+
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             setupNavigation();
@@ -2044,6 +2132,7 @@
             populateMatchConfigUI();
             updateMatchCategorySelects();
             updateMatchTypeSelects();
+            loadSeasonStartDate();
             loadShows();
             loadDashboard();
             loadRoster();
@@ -2160,13 +2249,14 @@
                     <td>${s.abbreviation}</td>
                     <td>${s.day ? `<span class="badge badge-success">${s.day}</span>` : '<span class="badge badge-warning">Not scheduled</span>'}</td>
                     <td>${s.showType === 'Special' ? '<span class="badge badge-info">Special</span>' : '<span class="badge badge-success">Weekly</span>'}</td>
+                    <td>${s.nextEpisodeDate ? `<span class="badge badge-info">${new Date(s.nextEpisodeDate).toLocaleDateString()}</span>` : '-'}</td>
                     <td>${s.matchLimit ? `<span class="badge badge-info">${s.matchLimit}</span>` : '<span class="badge badge-warning">Unlimited</span>'}</td>
                     <td><div class="action-buttons">
                         <button class="btn btn-secondary" onclick="editShow('${s.id}')">Edit</button>
                         <button class="btn btn-danger" onclick="deleteShow('${s.id}')">Delete</button>
                     </div></td>
                 </tr>`).join('')
-                : '<tr><td colspan="6" class="no-data">No shows found</td></tr>';
+                : '<tr><td colspan="7" class="no-data">No shows found</td></tr>';
             document.getElementById('showsTable').innerHTML = html;
         }
 
@@ -2225,6 +2315,19 @@
                 matchLimit = document.getElementById('showMatchLimitWeekly').value || null;
             }
             
+            // Calculate next episode date if day is set
+            let nextEpisodeDate = null;
+            if (day && DAY_INDEX[day] !== undefined) {
+                const today = new Date();
+                const todayDayIndex = today.getDay();
+                const targetDayIndex = DAY_INDEX[day];
+                let daysUntilNext = targetDayIndex - todayDayIndex;
+                if (daysUntilNext <= 0) daysUntilNext += 7;
+                const nextDate = new Date(today);
+                nextDate.setDate(today.getDate() + daysUntilNext);
+                nextEpisodeDate = nextDate.toISOString().split('T')[0];
+            }
+            
             const method = id ? 'PUT' : 'POST';
             const url = id ? `${API}/shows/${id}` : `${API}/shows`;
             try {
@@ -2237,7 +2340,8 @@
                         showType,
                         day: day || null,
                         matchLimit: matchLimit ? parseInt(matchLimit) : null,
-                        eligibleShows: showType === 'Special' ? eligibleShows : []
+                        eligibleShows: showType === 'Special' ? eligibleShows : [],
+                        nextEpisodeDate
                     })
                 });
                 if (res.ok) {
@@ -2485,6 +2589,7 @@
                         <td><span class="badge ${w.status === 'Active' ? 'badge-success' : 'badge-warning'}">${w.status}</span></td>
                         <td>
                             <div class="action-buttons">
+                                <button class="btn btn-primary" onclick="viewWrestlerProfile(${w.id})">View Profile</button>
                                 <button class="btn btn-secondary" onclick="editWrestler(${w.id})">Edit</button>
                                 <button class="btn btn-danger" onclick="deleteWrestler(${w.id})">Delete</button>
                             </div>
@@ -2726,6 +2831,91 @@
             document.getElementById('wrestlerStatus').value = w.status;
             document.getElementById('wrestlerImage').value = w.imageUrl || '';
             openModal('wrestlerModal');
+        }
+
+        async function viewWrestlerProfile(id) {
+            const wrestler = wrestlers.find(w => w.id === id);
+            if (!wrestler) return;
+
+            document.getElementById('profileWrestlerName').textContent = wrestler.name;
+
+            const shows = wrestler.shows && wrestler.shows.length ? wrestler.shows : (wrestler.show ? [wrestler.show] : []);
+            const showBadges = shows.map(s => `<span class="badge badge-info" style="margin:2px;">${s}</span>`).join('');
+            const genderBadge = wrestler.gender ? `<span class="badge ${wrestler.gender.toLowerCase() === 'male' ? 'badge-info' : 'badge-danger'}">${wrestler.gender}</span>` : '-';
+            const divisionBadge = wrestler.division && wrestler.division !== 'Unassigned' ? `<span class="badge badge-success">${wrestler.division}</span>` : '<span class="badge" style="background:#555;">Unassigned</span>';
+            const statusBadge = `<span class="badge ${wrestler.status === 'Active' ? 'badge-success' : 'badge-warning'}">${wrestler.status}</span>`;
+            const overallBadge = wrestler.overall ? `<span class="badge" style="background:${getOverallColor(wrestler.overall)};color:#fff;font-weight:bold;">${wrestler.overall}</span>` : '-';
+            
+            document.getElementById('profileBasicInfo').innerHTML = `
+                <p><strong>Shows:</strong> ${showBadges}</p>
+                <p><strong>Gender:</strong> ${genderBadge}</p>
+                <p><strong>Division:</strong> ${divisionBadge}</p>
+                <p><strong>Status:</strong> ${statusBadge}</p>
+                <p><strong>Overall:</strong> ${overallBadge}</p>
+            `;
+
+            const titles = championships.filter(c => c.holder === wrestler.name);
+            document.getElementById('profileChampionships').innerHTML = titles.length > 0
+                ? titles.map(t => `<p>🏆 <strong>${t.name}</strong> <span class="badge badge-info">${t.show}</span></p>`).join('')
+                : '<p style="color:var(--text-muted);">No current championships</p>';
+
+            const wrestlerMatches = allMatches.filter(m => {
+                const notes = m.notes || '';
+                if (notes.includes('[MEEVENT]')) return false;
+                const participants = [m.participant1, m.participant2, m.participant3, m.participant4, m.participant5, m.participant6, m.participant7, m.participant8].filter(Boolean);
+                return participants.includes(wrestler.name);
+            });
+            const wins = wrestlerMatches.filter(m => m.winner === wrestler.name).length;
+            const losses = wrestlerMatches.filter(m => m.result === 'Completed' && m.winner && m.winner !== wrestler.name).length;
+            const pending = wrestlerMatches.filter(m => m.result === 'Pending').length;
+            
+            const matchHistoryHTML = `
+                <div style="margin-bottom:15px;">
+                    <p><strong>Record:</strong> ${wins}-${losses} (${pending} upcoming)</p>
+                    <p><strong>Total Matches:</strong> ${wrestlerMatches.length}</p>
+                </div>
+                <div style="max-height:300px; overflow-y:auto;">
+                    ${wrestlerMatches.length > 0 ? wrestlerMatches.slice(0, 10).map(m => {
+                        const champ = m.championshipId ? championships.find(c => c.id === m.championshipId) : null;
+                        const participants = [m.participant1, m.participant2, m.participant3, m.participant4, m.participant5, m.participant6, m.participant7, m.participant8].filter(Boolean).join(' vs ');
+                        const resultBadge = m.result === 'Completed' ? (m.winner === wrestler.name ? '<span class="badge badge-success">WIN</span>' : '<span class="badge badge-danger">LOSS</span>') : '<span class="badge badge-warning">Upcoming</span>';
+                        return `<p style="padding:8px; border-bottom:1px solid var(--border);">
+                            ${new Date(m.date).toLocaleDateString()} - <strong>${m.type}</strong> ${champ ? '🏆' : ''}<br>
+                            <small>${participants}</small> ${resultBadge}
+                        </p>`;
+                    }).join('') : '<p style="color:var(--text-muted);">No matches found</p>'}
+                </div>
+            `;
+            document.getElementById('profileMatchHistory').innerHTML = matchHistoryHTML;
+
+            const tagMatches = wrestlerMatches.filter(m => m.type && (m.type.includes('2 on 2') || m.type.includes('3 on 3') || m.type.includes('4 on 4') || m.type.includes('Tornado')));
+            const partners = new Map();
+            tagMatches.forEach(m => {
+                const participants = [m.participant1, m.participant2, m.participant3, m.participant4, m.participant5, m.participant6, m.participant7, m.participant8].filter(Boolean);
+                participants.forEach(p => {
+                    if (p !== wrestler.name) {
+                        partners.set(p, (partners.get(p) || 0) + 1);
+                    }
+                });
+            });
+            const sortedPartners = Array.from(partners.entries()).sort((a, b) => b[1] - a[1]);
+            document.getElementById('profileTagTeams').innerHTML = sortedPartners.length > 0
+                ? sortedPartners.map(([name, count]) => `<p>👥 <strong>${name}</strong> <span class="badge badge-info">${count} matches</span></p>`).join('')
+                : '<p style="color:var(--text-muted);">No tag team matches found</p>';
+
+            const storylineMatches = wrestlerMatches.filter(m => m.isImportant && !m.notes.includes('[MEMATCH:'));
+            document.getElementById('profileStorylines').innerHTML = storylineMatches.length > 0
+                ? storylineMatches.map(m => {
+                    const participants = [m.participant1, m.participant2, m.participant3, m.participant4, m.participant5, m.participant6, m.participant7, m.participant8].filter(Boolean).join(' vs ');
+                    const statusBadge = `<span class="badge ${m.result === 'Pending' ? 'badge-warning' : 'badge-success'}">${m.result}</span>`;
+                    return `<p style="padding:8px; border-bottom:1px solid var(--border);">
+                        ${new Date(m.date).toLocaleDateString()} - <strong>${m.type}</strong><br>
+                        <small>${participants}</small> ${statusBadge}
+                    </p>`;
+                }).join('')
+                : '<p style="color:var(--text-muted);">No storyline matches</p>';
+
+            openModal('wrestlerProfileModal');
         }
 
         async function saveWrestler(e) {
@@ -3518,17 +3708,22 @@
         function onMatchTypeOrShowChange() {
             const type = document.getElementById('matchType').value;
             const show = document.getElementById('matchShow').value;
+            
+            // Auto-fill date from show's nextEpisodeDate
+            if (show) {
+                const showData = shows.find(s => s.name === show);
+                if (showData && showData.nextEpisodeDate) {
+                    const dateInput = document.getElementById('matchDate');
+                    if (!dateInput.value || dateInput.dataset.autoFilled === 'true') {
+                        dateInput.value = showData.nextEpisodeDate + 'T20:00';
+                        dateInput.dataset.autoFilled = 'true';
+                    }
+                }
+            }
             const count = MATCH_SLOTS[type] || 2;
             _teamFillSlot = 0;
             buildParticipantSlots(count, show);
             applyTypeCategoryValidation(type, 'matchCategory');
-            if (show) {
-                const showData = shows.find(s => s.name === show);
-                if (showData && showData.day) {
-                    const next = nextDateForDay(showData.day);
-                    if (next) document.getElementById('matchDate').value = next;
-                }
-            }
             populateMatchChampionships(show);
             checkMatchLimit();
         }
