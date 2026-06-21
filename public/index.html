@@ -388,16 +388,19 @@
             </div>
 
             <h3>Show Breakdown</h3>
+            <p style="color:var(--text-muted);font-size:0.85em;margin-bottom:10px;">Note: Wrestlers on multiple shows are counted in each show</p>
             <div class="table-container">
                 <table>
                     <thead>
                         <tr>
                             <th>Show</th>
-                            <th>Wrestlers</th>
+                            <th>Total Wrestlers</th>
+                            <th>Male</th>
+                            <th>Female</th>
                         </tr>
                     </thead>
                     <tbody id="showBreakdown">
-                        <tr><td colspan="2" class="no-data">Loading...</td></tr>
+                        <tr><td colspan="4" class="no-data">Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -424,13 +427,14 @@
                             <th data-table="roster" data-col="name">Name</th>
                             <th data-table="roster" data-col="show">Show</th>
                             <th data-table="roster" data-col="gender">Gender</th>
+                            <th data-table="roster" data-col="division">Division</th>
                             <th data-table="roster" data-col="overall">Overall</th>
                             <th data-table="roster" data-col="status">Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="rosterTable">
-                        <tr><td colspan="5" class="no-data">Loading wrestlers...</td></tr>
+                        <tr><td colspan="7" class="no-data">Loading wrestlers...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -2430,8 +2434,10 @@
                 // Show breakdown
                 const breakdownHtml = stats.showBreakdown.map(s => `
                     <tr>
-                        <td>${s.show}</td>
-                        <td><strong>${s.count}</strong></td>
+                        <td><strong>${s.show}</strong></td>
+                        <td><span class="badge badge-info">${s.count}</span></td>
+                        <td><span class="badge" style="background:#3b82f6;color:#fff;">${s.maleCount || 0}</span></td>
+                        <td><span class="badge" style="background:#ec4899;color:#fff;">${s.femaleCount || 0}</span></td>
                     </tr>
                 `).join('');
                 document.getElementById('showBreakdown').innerHTML = breakdownHtml;
@@ -2444,7 +2450,9 @@
             try {
                 const res = await fetch(`${API}/wrestlers`);
                 wrestlers = await res.json();
-                displayRoster(wrestlers);
+                // Default sort by name ascending
+                sortState['roster'] = { col: 'name', dir: 'asc' };
+                displayRoster(sortData([...wrestlers], 'name', 'asc'));
                 populateChampionshipHolders('');
                 populateTransferWrestlers('');
             } catch (err) {
@@ -2458,6 +2466,12 @@
                     const showBadges = (w.shows&&w.shows.length?w.shows:(w.show?[w.show]:[])).map(s => 
                         `<span class="badge badge-info" style="margin:2px;">${s}</span>`
                     ).join('');
+                    const genderBadge = w.gender 
+                        ? `<span class="badge ${w.gender.toLowerCase() === 'male' ? 'badge-info' : 'badge-danger'}">${w.gender}</span>` 
+                        : '-';
+                    const divisionBadge = w.division && w.division !== 'Unassigned'
+                        ? `<span class="badge badge-success">${w.division}</span>`
+                        : '<span class="badge" style="background:#555;">Unassigned</span>';
                     const overallBadge = w.overall 
                         ? `<span class="badge" style="background:${getOverallColor(w.overall)};color:#fff;font-weight:bold;">${w.overall}</span>` 
                         : '-';
@@ -2465,7 +2479,8 @@
                     <tr>
                         <td><strong>${w.name}</strong></td>
                         <td>${showBadges}</td>
-                        <td>${w.gender ? `<span class="badge badge-info">${w.gender}</span>` : '-'}</td>
+                        <td>${genderBadge}</td>
+                        <td>${divisionBadge}</td>
                         <td>${overallBadge}</td>
                         <td><span class="badge ${w.status === 'Active' ? 'badge-success' : 'badge-warning'}">${w.status}</span></td>
                         <td>
@@ -2477,7 +2492,7 @@
                     </tr>
                 `;
                 }).join('')
-                : '<tr><td colspan="6" class="no-data">No wrestlers added yet</td></tr>';
+                : '<tr><td colspan="7" class="no-data">No wrestlers added yet</td></tr>';
             document.getElementById('rosterTable').innerHTML = html;
         }
 
@@ -2501,7 +2516,9 @@
                     (w.name.toLowerCase().includes(search) || w.division.toLowerCase().includes(search));
             });
             
-            displayRoster(filtered);
+            // Apply current sort or default to name asc
+            const { col = 'name', dir = 'asc' } = sortState['roster'] || {};
+            displayRoster(sortData(filtered, col, dir));
         }
 
         async function loadMatches() {
@@ -2748,7 +2765,9 @@
                         wrestlers.push(savedWrestler);
                     }
                     
-                    // Re-display roster with current filter
+                    // Re-display roster with current filter and default sort
+                    const { col = 'name', dir = 'asc' } = sortState['roster'] || {};
+                    sortState['roster'] = { col, dir };
                     filterRoster();
                     
                     // Update other dropdowns that use wrestlers

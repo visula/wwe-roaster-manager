@@ -423,12 +423,18 @@ class DatabaseManager {
   }
 
   getTotalWrestlers() {
-    return this.db.prepare('SELECT COUNT(*) as count FROM wrestlers').get().count;
+    return this.db.prepare('SELECT COUNT(DISTINCT id) as count FROM wrestlers').get().count;
   }
 
   getShowBreakdown() {
     return this.db.prepare(
-      `SELECT show, COUNT(*) as count FROM wrestlers GROUP BY show ORDER BY show`
+      `SELECT ws.showName as show, COUNT(DISTINCT ws.wrestlerId) as count,
+       SUM(CASE WHEN w.gender = 'Male' THEN 1 ELSE 0 END) as maleCount,
+       SUM(CASE WHEN w.gender = 'Female' THEN 1 ELSE 0 END) as femaleCount
+       FROM wrestler_shows ws 
+       INNER JOIN wrestlers w ON ws.wrestlerId = w.id
+       GROUP BY ws.showName 
+       ORDER BY ws.showName`
     ).all();
   }
 
