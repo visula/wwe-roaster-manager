@@ -160,11 +160,11 @@ app.get('/api/matches/check-limit', (req, res) => {
 });
 
 app.post('/api/matches', (req, res) => {
-  const { show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant } = req.body;
+  const { show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant, storylineId, rivalryId } = req.body;
   if (!show || !participant1) return res.status(400).json({ error: 'Show and at least one participant required' });
   try {
-    const id = db.addMatch(show, type || 'Singles', category || '', participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date || new Date().toISOString(), result || 'Pending', winner || null, notes || '', championshipId || null, isImportant || 0);
-    res.json({ id, show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant });
+    const id = db.addMatch(show, type || 'Singles', category || '', participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date || new Date().toISOString(), result || 'Pending', winner || null, notes || '', championshipId || null, isImportant || 0, storylineId || null, rivalryId || null);
+    res.json({ id, show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant, storylineId, rivalryId });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -172,10 +172,10 @@ app.post('/api/matches', (req, res) => {
 
 app.put('/api/matches/:id', (req, res) => {
   const { id } = req.params;
-  const { show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant } = req.body;
+  const { show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant, storylineId, rivalryId } = req.body;
   try {
-    db.updateMatch(id, show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId || null, isImportant || 0);
-    res.json({ id, show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant });
+    db.updateMatch(id, show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId || null, isImportant || 0, storylineId || null, rivalryId || null);
+    res.json({ id, show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant, storylineId, rivalryId });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -295,6 +295,80 @@ app.post('/api/transfers', (req, res) => {
 
 app.delete('/api/transfers/:id', (req, res) => {
   db.deleteTransfer(req.params.id);
+  res.json({ success: true });
+});
+
+// ==================== STORYLINES ====================
+app.get('/api/storylines', (req, res) => {
+  res.json(db.getAllStorylines());
+});
+
+app.get('/api/storylines/:id', (req, res) => {
+  const storyline = db.getStorylineById(req.params.id);
+  if (!storyline) return res.status(404).json({ error: 'Storyline not found' });
+  res.json(storyline);
+});
+
+app.post('/api/storylines', (req, res) => {
+  const { title, description, show, status, startDate, endDate, participants } = req.body;
+  if (!title) return res.status(400).json({ error: 'Title is required' });
+  try {
+    const id = db.addStoryline(title, description || '', show || null, status || 'Active', startDate || new Date().toISOString().split('T')[0], endDate || null, participants || []);
+    res.json({ id, title, description, show, status, startDate, endDate, participants });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/storylines/:id', (req, res) => {
+  const { title, description, show, status, startDate, endDate, participants } = req.body;
+  try {
+    db.updateStoryline(req.params.id, title, description || '', show || null, status, startDate, endDate || null, participants || []);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/storylines/:id', (req, res) => {
+  db.deleteStoryline(req.params.id);
+  res.json({ success: true });
+});
+
+// ==================== RIVALRIES ====================
+app.get('/api/rivalries', (req, res) => {
+  res.json(db.getAllRivalries());
+});
+
+app.get('/api/rivalries/:id', (req, res) => {
+  const rivalry = db.getRivalryById(req.params.id);
+  if (!rivalry) return res.status(404).json({ error: 'Rivalry not found' });
+  res.json(rivalry);
+});
+
+app.post('/api/rivalries', (req, res) => {
+  const { wrestler1, wrestler2, show, status, startDate, endDate, description } = req.body;
+  if (!wrestler1 || !wrestler2) return res.status(400).json({ error: 'Both wrestlers are required' });
+  try {
+    const id = db.addRivalry(wrestler1, wrestler2, show || null, status || 'Active', startDate || new Date().toISOString().split('T')[0], endDate || null, description || '');
+    res.json({ id, wrestler1, wrestler2, show, status, startDate, endDate, description });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/rivalries/:id', (req, res) => {
+  const { wrestler1, wrestler2, show, status, startDate, endDate, description } = req.body;
+  try {
+    db.updateRivalry(req.params.id, wrestler1, wrestler2, show || null, status, startDate, endDate || null, description || '');
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/rivalries/:id', (req, res) => {
+  db.deleteRivalry(req.params.id);
   res.json({ success: true });
 });
 

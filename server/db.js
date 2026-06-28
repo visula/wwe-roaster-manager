@@ -161,6 +161,60 @@ class DatabaseManager {
       }
     }
 
+    // Migrate: add storylines table
+    const storylineCols = this.db.prepare(`PRAGMA table_info(storylines)`).all();
+    if (!storylineCols.length) {
+      this.db.exec(`CREATE TABLE IF NOT EXISTS storylines (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        description TEXT,
+        show TEXT,
+        status TEXT DEFAULT 'Active',
+        startDate TEXT,
+        endDate TEXT,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`);
+      console.log('✅ Created storylines table');
+    }
+
+    // Migrate: add storyline_participants table
+    const storylinePartsCols = this.db.prepare(`PRAGMA table_info(storyline_participants)`).all();
+    if (!storylinePartsCols.length) {
+      this.db.exec(`CREATE TABLE IF NOT EXISTS storyline_participants (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        storylineId INTEGER NOT NULL,
+        wrestlerName TEXT NOT NULL,
+        role TEXT,
+        FOREIGN KEY (storylineId) REFERENCES storylines(id) ON DELETE CASCADE
+      )`);
+      console.log('✅ Created storyline_participants table');
+    }
+
+    // Migrate: add rivalries table
+    const rivalryCols = this.db.prepare(`PRAGMA table_info(rivalries)`).all();
+    if (!rivalryCols.length) {
+      this.db.exec(`CREATE TABLE IF NOT EXISTS rivalries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        wrestler1 TEXT NOT NULL,
+        wrestler2 TEXT NOT NULL,
+        show TEXT,
+        status TEXT DEFAULT 'Active',
+        startDate TEXT,
+        endDate TEXT,
+        description TEXT,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`);
+      console.log('✅ Created rivalries table');
+    }
+
+    // Migrate: add storylineId to matches
+    if (matchCols.length && !matchCols.find(c => c.name === 'storylineId')) {
+      this.db.exec(`ALTER TABLE matches ADD COLUMN storylineId INTEGER`);
+    }
+    if (matchCols.length && !matchCols.find(c => c.name === 'rivalryId')) {
+      this.db.exec(`ALTER TABLE matches ADD COLUMN rivalryId INTEGER`);
+    }
+
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS shows (
         id TEXT PRIMARY KEY,
@@ -461,26 +515,26 @@ class DatabaseManager {
     ).all(limit);
   }
 
-  addMatch(show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant) {
+  addMatch(show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant, storylineId, rivalryId) {
     const limitCheck = this.canAddMatch(show, date);
     if (!limitCheck.canAdd) {
       throw new Error(`Match limit reached for ${show} on ${date.split('T')[0]}. Limit: ${limitCheck.limit}, Current: ${limitCheck.current}`);
     }
     const result_res = this.db.prepare(
-      `INSERT INTO matches (show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId || null, isImportant ? 1 : 0);
+      `INSERT INTO matches (show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant, storylineId, rivalryId)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId || null, isImportant ? 1 : 0, storylineId || null, rivalryId || null);
     return result_res.lastInsertRowid;
   }
 
-  updateMatch(id, show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant) {
+  updateMatch(id, show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId, isImportant, storylineId, rivalryId) {
     const limitCheck = this.canAddMatch(show, date, id);
     if (!limitCheck.canAdd) {
       throw new Error(`Match limit reached for ${show} on ${date.split('T')[0]}. Limit: ${limitCheck.limit}, Current: ${limitCheck.current}`);
     }
     this.db.prepare(
-      `UPDATE matches SET show = ?, type = ?, category = ?, participant1 = ?, participant2 = ?, participant3 = ?, participant4 = ?, participant5 = ?, participant6 = ?, participant7 = ?, participant8 = ?, date = ?, result = ?, winner = ?, notes = ?, championshipId = ?, isImportant = ? WHERE id = ?`
-    ).run(show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId || null, isImportant ? 1 : 0, id);
+      `UPDATE matches SET show = ?, type = ?, category = ?, participant1 = ?, participant2 = ?, participant3 = ?, participant4 = ?, participant5 = ?, participant6 = ?, participant7 = ?, participant8 = ?, date = ?, result = ?, winner = ?, notes = ?, championshipId = ?, isImportant = ?, storylineId = ?, rivalryId = ? WHERE id = ?`
+    ).run(show, type, category, participant1, participant2, participant3, participant4, participant5, participant6, participant7, participant8, date, result, winner, notes, championshipId || null, isImportant ? 1 : 0, storylineId || null, rivalryId || null, id);
   }
 
   deleteMatch(id) {
@@ -587,6 +641,77 @@ class DatabaseManager {
 
   deleteTransfer(id) {
     this.db.prepare('DELETE FROM roster_transfers WHERE id = ?').run(id);
+  }
+
+  // ==================== STORYLINES ====================
+  getAllStorylines() {
+    const storylines = this.db.prepare('SELECT * FROM storylines ORDER BY startDate DESC').all();
+    return storylines.map(s => {
+      const participants = this.db.prepare('SELECT wrestlerName, role FROM storyline_participants WHERE storylineId = ?').all(s.id);
+      return { ...s, participants };
+    });
+  }
+
+  getStorylineById(id) {
+    const storyline = this.db.prepare('SELECT * FROM storylines WHERE id = ?').get(id);
+    if (!storyline) return null;
+    const participants = this.db.prepare('SELECT wrestlerName, role FROM storyline_participants WHERE storylineId = ?').all(id);
+    return { ...storyline, participants };
+  }
+
+  addStoryline(title, description, show, status, startDate, endDate, participants) {
+    const result = this.db.prepare(
+      `INSERT INTO storylines (title, description, show, status, startDate, endDate) VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(title, description, show, status || 'Active', startDate, endDate || null);
+    const storylineId = result.lastInsertRowid;
+    if (participants && participants.length > 0) {
+      participants.forEach(p => {
+        this.db.prepare('INSERT INTO storyline_participants (storylineId, wrestlerName, role) VALUES (?, ?, ?)').run(storylineId, p.name, p.role || null);
+      });
+    }
+    return storylineId;
+  }
+
+  updateStoryline(id, title, description, show, status, startDate, endDate, participants) {
+    this.db.prepare(
+      `UPDATE storylines SET title = ?, description = ?, show = ?, status = ?, startDate = ?, endDate = ? WHERE id = ?`
+    ).run(title, description, show, status, startDate, endDate || null, id);
+    this.db.prepare('DELETE FROM storyline_participants WHERE storylineId = ?').run(id);
+    if (participants && participants.length > 0) {
+      participants.forEach(p => {
+        this.db.prepare('INSERT INTO storyline_participants (storylineId, wrestlerName, role) VALUES (?, ?, ?)').run(id, p.name, p.role || null);
+      });
+    }
+  }
+
+  deleteStoryline(id) {
+    this.db.prepare('DELETE FROM storylines WHERE id = ?').run(id);
+  }
+
+  // ==================== RIVALRIES ====================
+  getAllRivalries() {
+    return this.db.prepare('SELECT * FROM rivalries ORDER BY startDate DESC').all();
+  }
+
+  getRivalryById(id) {
+    return this.db.prepare('SELECT * FROM rivalries WHERE id = ?').get(id);
+  }
+
+  addRivalry(wrestler1, wrestler2, show, status, startDate, endDate, description) {
+    const result = this.db.prepare(
+      `INSERT INTO rivalries (wrestler1, wrestler2, show, status, startDate, endDate, description) VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run(wrestler1, wrestler2, show, status || 'Active', startDate, endDate || null, description || '');
+    return result.lastInsertRowid;
+  }
+
+  updateRivalry(id, wrestler1, wrestler2, show, status, startDate, endDate, description) {
+    this.db.prepare(
+      `UPDATE rivalries SET wrestler1 = ?, wrestler2 = ?, show = ?, status = ?, startDate = ?, endDate = ?, description = ? WHERE id = ?`
+    ).run(wrestler1, wrestler2, show, status, startDate, endDate || null, description || '', id);
+  }
+
+  deleteRivalry(id) {
+    this.db.prepare('DELETE FROM rivalries WHERE id = ?').run(id);
   }
 
   close() {

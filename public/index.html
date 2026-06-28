@@ -466,9 +466,10 @@
         <!-- Storylines Tab -->
         <div id="storylines" class="tab-content">
             <div class="section-header">
-                <h2>Storylines</h2>
-                <button class="btn btn-primary" onclick="openAddMatchModal()">+ Schedule Match</button>
+                <h2>Storylines & Rivalries</h2>
+                <button class="btn btn-primary" onclick="openAddRivalryModal()">+ Add Rivalry</button>
             </div>
+
             <div class="filter-section">
                 <select id="storylineShowFilter" onchange="filterStorylines()">
                     <option value="">All Shows</option>
@@ -479,14 +480,36 @@
                     <option value="Completed">Completed</option>
                 </select>
             </div>
+
+            <h3 style="margin: 20px 0 10px 0; color: var(--text);">Rivalries</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Wrestlers</th>
+                            <th>Show</th>
+                            <th>Status</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rivalriesTable">
+                        <tr><td colspan="6" class="no-data">Loading rivalries...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3 style="margin: 20px 0 10px 0; color: var(--text);">Storyline Matches</h3>
             <div class="table-container">
                 <table>
                     <thead>
                         <tr>
                             <th>Date</th>
                             <th>Show</th>
-                            <th>Type</th>
+                            <th>Match Type</th>
                             <th>Participants</th>
+                            <th>Description</th>
                             <th>Championship</th>
                             <th>Status</th>
                             <th>Winner</th>
@@ -494,7 +517,7 @@
                         </tr>
                     </thead>
                     <tbody id="storylinesTable">
-                        <tr><td colspan="8" class="no-data">No storyline matches found</td></tr>
+                        <tr><td colspan="9" class="no-data">Loading storylines...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -1177,6 +1200,20 @@
                         <label for="matchIsImportant" style="margin:0;">⭐ Storyline / Important Match</label>
                     </div>
                 </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Link to Storyline</label>
+                        <select id="matchStoryline">
+                            <option value="">No Storyline</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Link to Rivalry</label>
+                        <select id="matchRivalry">
+                            <option value="">No Rivalry</option>
+                        </select>
+                    </div>
+                </div>
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('matchModal')">Cancel</button>
                     <button type="submit" class="btn btn-success">Save</button>
@@ -1275,6 +1312,8 @@
         let transfers = [];
         let allEvents = [];   // proper events table
         let allTeams = [];    // teams from DB
+        let allStorylines = [];
+        let allRivalries = [];
 
         // ==================== TEAMS DATA (seeded from DB; fallback hardcoded list) ====================
         const BUILTIN_TEAMS = [
@@ -2108,6 +2147,24 @@
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
+            // Clean up any stray modals from browser cache/previous session
+            setTimeout(() => {
+                const strayModal = document.getElementById('rivalryFromMatchModal');
+                if (strayModal) {
+                    console.log('Removing stray rivalryFromMatchModal on page load');
+                    strayModal.remove();
+                }
+            }, 100);
+            
+            // Additional cleanup check after a delay
+            setTimeout(() => {
+                const lateModal = document.getElementById('rivalryFromMatchModal');
+                if (lateModal) {
+                    console.log('Removing late-appearing rivalryFromMatchModal');
+                    lateModal.remove();
+                }
+            }, 1000);
+            
             setupNavigation();
             setupSortableHeaders();
             loadMatchConfig();
@@ -2737,11 +2794,21 @@
                 ? storylines.map(m => {
                     const champ = m.championshipId ? championships.find(c => c.id === m.championshipId) : null;
                     const participants = [m.participant1, m.participant2, m.participant3, m.participant4, m.participant5, m.participant6, m.participant7, m.participant8].filter(Boolean).join(' vs ');
+                    // Clean notes by removing internal tags
+                    let description = (m.notes || '')
+                        .replace(/\[MEMATCH:[^\]]+\]/g, '')
+                        .replace(/\[MEEVENT\]/g, '')
+                        .replace(/\[MENAME:[^\]]+\]/g, '')
+                        .replace(/\[POOLS:[^\]]+\]/g, '')
+                        .replace(/\[LIMIT:[^\]]+\]/g, '')
+                        .trim();
+                    if (!description) description = '-';
                     return `<tr>
                         <td>${new Date(m.date).toLocaleDateString()}</td>
                         <td>${m.show}</td>
                         <td>${m.type}</td>
                         <td>${participants}</td>
+                        <td style="max-width:200px;word-wrap:break-word;">${description}</td>
                         <td>${champ ? `<span class="badge badge-info">${champ.name}</span>` : '-'}</td>
                         <td><span class="badge ${m.result === 'Pending' ? 'badge-warning' : 'badge-success'}">${m.result}</span></td>
                         <td>${m.winner || '-'}</td>
@@ -2751,8 +2818,11 @@
                         </div></td>
                     </tr>`;
                 }).join('')
-                : '<tr><td colspan="8" class="no-data">No storyline matches found</td></tr>';
+                : '<tr><td colspan="9" class="no-data">No storyline matches found. Mark matches as storylines by checking the ⭐ Storyline checkbox when scheduling.</td></tr>';
             document.getElementById('storylinesTable').innerHTML = html;
+
+            // Load and display rivalries
+            loadRivalriesForStorylines();
         }
 
         function filterStorylines() {
@@ -2766,6 +2836,9 @@
                     (!status || m.result === status);
             });
             displayStorylines(filtered);
+
+            // Also filter rivalries
+            filterRivalriesForStorylines();
         }
 
         async function loadChampionships() {
@@ -4239,6 +4312,472 @@
                 e.target.classList.remove('active');
             }
         });
+
+        // ==================== STORYLINES ====================
+        async function loadStorylines() {
+            try {
+                const res = await fetch(`${API}/storylines`);
+                allStorylines = await res.json();
+                displayStorylinesManager(allStorylines);
+            } catch (err) {
+                console.error('Error loading storylines:', err);
+            }
+        }
+
+        function displayStorylinesManager(data) {
+            if (data.length === 0) {
+                document.getElementById('storylinesManagerContainer').innerHTML = '<p class="no-data">No storylines created yet</p>';
+                return;
+            }
+
+            let html = '';
+            data.forEach(s => {
+                const statusBadge = `<span class="badge ${s.status === 'Active' ? 'badge-success' : s.status === 'Completed' ? 'badge-info' : 'badge-warning'}">${s.status}</span>`;
+                const showBadge = s.show ? `<span class="badge badge-info">${s.show}</span>` : '';
+                const participants = s.participants && s.participants.length > 0 ? s.participants.map(p => `${p.wrestlerName}${p.role ? ` (${p.role})` : ''}`).join(', ') : 'No participants';
+                
+                // Find matches linked to this storyline
+                const linkedMatches = allMatches.filter(m => m.storylineId === s.id);
+                const matchesHTML = linkedMatches.length > 0 ? `
+                    <div style="margin-top:10px; padding:10px; background:var(--card-bg); border-left:3px solid var(--primary);">
+                        <strong>Linked Matches (${linkedMatches.length}):</strong>
+                        ${linkedMatches.map(m => {
+                            const participants = [m.participant1, m.participant2, m.participant3, m.participant4, m.participant5, m.participant6, m.participant7, m.participant8].filter(Boolean).join(' vs ');
+                            const statusBadge = `<span class="badge ${m.result === 'Pending' ? 'badge-warning' : 'badge-success'}">${m.result}</span>`;
+                            return `<p style="margin:5px 0; font-size:0.9em;">
+                                🎬 ${new Date(m.date).toLocaleDateString()} - ${m.type}: ${participants} ${statusBadge}
+                            </p>`;
+                        }).join('')}
+                    </div>
+                ` : '<p style="margin:10px 0; color:var(--text-muted); font-size:0.9em;">No matches linked yet</p>';
+                
+                html += `<div class="card" style="margin-bottom:15px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <h4 style="color:var(--primary); margin:0;">${s.title}</h4>
+                        <div>${showBadge} ${statusBadge}</div>
+                    </div>
+                    <p style="margin:10px 0; color:var(--text-muted);">${s.description || 'No description'}</p>
+                    <p style="margin:5px 0;"><strong>Participants:</strong> ${participants}</p>
+                    <p style="margin:5px 0; font-size:0.9em; color:var(--text-muted);">Started: ${s.startDate ? new Date(s.startDate).toLocaleDateString() : 'N/A'} ${s.endDate ? ` | Ended: ${new Date(s.endDate).toLocaleDateString()}` : ''}</p>
+                    ${matchesHTML}
+                    <div class="action-buttons" style="margin-top:10px;">
+                        <button class="btn btn-secondary" onclick="editStoryline(${s.id})">Edit</button>
+                        <button class="btn btn-danger" onclick="deleteStoryline(${s.id})">Delete</button>
+                    </div>
+                </div>`;
+            });
+
+            document.getElementById('storylinesManagerContainer').innerHTML = html;
+        }
+
+        function filterStorylinesManager() {
+            const show = document.getElementById('storylineShowFilter').value;
+            const status = document.getElementById('storylineStatusFilterManager').value;
+            const filtered = allStorylines.filter(s => {
+                return (!show || s.show === show) && (!status || s.status === status);
+            });
+            displayStorylinesManager(filtered);
+        }
+
+        function openAddStorylineModal() {
+            const html = `
+                <div id="storylineModal" class="modal active">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2>Create Storyline</h2>
+                            <button class="close-btn" onclick="document.getElementById('storylineModal').remove()">&times;</button>
+                        </div>
+                        <form onsubmit="saveStoryline(event)">
+                            <input type="hidden" id="storylineId">
+                            <div class="form-group">
+                                <label>Title *</label>
+                                <input type="text" id="storylineTitle" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Description</label>
+                                <textarea id="storylineDescription" rows="3"></textarea>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Show</label>
+                                    <select id="storylineShow">
+                                        <option value="">All Shows</option>
+                                        ${shows.map(s => `<option value="${s.name}">${s.name}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Status</label>
+                                    <select id="storylineStatus">
+                                        <option value="Active">Active</option>
+                                        <option value="On Hold">On Hold</option>
+                                        <option value="Completed">Completed</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Start Date</label>
+                                    <input type="date" id="storylineStartDate">
+                                </div>
+                                <div class="form-group">
+                                    <label>End Date</label>
+                                    <input type="date" id="storylineEndDate">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Participants (select wrestlers)</label>
+                                <select id="storylineParticipants" multiple size="6" style="height:auto;">
+                                    ${wrestlers.map(w => `<option value="${w.name}">${w.name}</option>`).join('')}
+                                </select>
+                                <small style="color:var(--text-muted);font-size:0.75em;">Hold Ctrl/Cmd to select multiple</small>
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-secondary" onclick="document.getElementById('storylineModal').remove()">Cancel</button>
+                                <button type="submit" class="btn btn-success">Save</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', html);
+        }
+
+        async function saveStoryline(e) {
+            e.preventDefault();
+            const id = document.getElementById('storylineId').value;
+            const title = document.getElementById('storylineTitle').value;
+            const description = document.getElementById('storylineDescription').value;
+            const show = document.getElementById('storylineShow').value;
+            const status = document.getElementById('storylineStatus').value;
+            const startDate = document.getElementById('storylineStartDate').value;
+            const endDate = document.getElementById('storylineEndDate').value;
+            const partSelect = document.getElementById('storylineParticipants');
+            const participants = Array.from(partSelect.selectedOptions).map(opt => ({ name: opt.value, role: null }));
+
+            const isEdit = !!id;
+            const url = isEdit ? `${API}/storylines/${id}` : `${API}/storylines`;
+            const method = isEdit ? 'PUT' : 'POST';
+
+            try {
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, description, show, status, startDate, endDate, participants })
+                });
+                if (res.ok) {
+                    document.getElementById('storylineModal').remove();
+                    await loadStorylines();
+                } else {
+                    alert('Error saving storyline');
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                alert('Error saving storyline');
+            }
+        }
+
+        function editStoryline(id) {
+            const s = allStorylines.find(x => x.id === id);
+            if (!s) return;
+            openAddStorylineModal();
+            setTimeout(() => {
+                document.getElementById('storylineId').value = id;
+                document.getElementById('storylineTitle').value = s.title;
+                document.getElementById('storylineDescription').value = s.description || '';
+                document.getElementById('storylineShow').value = s.show || '';
+                document.getElementById('storylineStatus').value = s.status;
+                document.getElementById('storylineStartDate').value = s.startDate || '';
+                document.getElementById('storylineEndDate').value = s.endDate || '';
+                const partSelect = document.getElementById('storylineParticipants');
+                Array.from(partSelect.options).forEach(opt => {
+                    opt.selected = s.participants && s.participants.some(p => p.wrestlerName === opt.value);
+                });
+                document.querySelector('#storylineModal .modal-header h2').textContent = 'Edit Storyline';
+            }, 10);
+        }
+
+        async function deleteStoryline(id) {
+            if (!confirm('Delete this storyline?')) return;
+            try {
+                await fetch(`${API}/storylines/${id}`, { method: 'DELETE' });
+                await loadStorylines();
+            } catch (err) {
+                console.error('Error:', err);
+            }
+        }
+
+        // ==================== RIVALRIES ====================
+        allRivalries = [];
+
+        async function loadRivalriesForStorylines() {
+            try {
+                const res = await fetch(`${API}/rivalries`);
+                allRivalries = await res.json();
+                displayRivalriesForStorylines(allRivalries);
+            } catch (err) {
+                console.error('Error loading rivalries:', err);
+            }
+        }
+
+        function displayRivalriesForStorylines(data) {
+            const show = document.getElementById('storylineShowFilter').value;
+            const status = document.getElementById('storylineStatusFilter').value;
+
+            const filtered = data.filter(r => {
+                return (!show || r.show === show) &&
+                       (!status || (status === 'Pending' && r.status === 'Active') || (status === 'Completed' && r.status === 'Completed'));
+            });
+
+            const html = filtered.length > 0
+                ? filtered.map(r => {
+                    const statusBadge = r.status === 'Active' ? 'badge-success' : r.status === 'Completed' ? 'badge-info' : 'badge-warning';
+                    return `<tr>
+                        <td><strong>${r.wrestler1}</strong> vs <strong>${r.wrestler2}</strong></td>
+                        <td>${r.show}</td>
+                        <td><span class="badge ${statusBadge}">${r.status}</span></td>
+                        <td>${new Date(r.startDate).toLocaleDateString()}</td>
+                        <td>${r.endDate ? new Date(r.endDate).toLocaleDateString() : '-'}</td>
+                        <td style="max-width:200px;word-wrap:break-word;">${r.description || '-'}</td>
+                    </tr>`;
+                }).join('')
+                : '<tr><td colspan="6" class="no-data">No rivalries found</td></tr>';
+
+            document.getElementById('rivalriesTable').innerHTML = html;
+        }
+
+        function filterRivalriesForStorylines() {
+            displayRivalriesForStorylines(allRivalries);
+        }
+
+        async function loadRivalries() {
+            try {
+                const res = await fetch(`${API}/rivalries`);
+                allRivalries = await res.json();
+                displayRivalries(allRivalries);
+            } catch (err) {
+                console.error('Error loading rivalries:', err);
+            }
+        }
+
+        function displayRivalries(data) {
+            if (data.length === 0) {
+                document.getElementById('rivalriesContainer').innerHTML = '<p class="no-data">No rivalries created yet</p>';
+                return;
+            }
+
+            let html = '';
+            data.forEach(r => {
+                const statusBadge = `<span class="badge ${r.status === 'Active' ? 'badge-danger' : 'badge-info'}">${r.status}</span>`;
+                const showBadge = r.show ? `<span class="badge badge-info">${r.show}</span>` : '';
+                
+                // Find matches linked to this rivalry
+                const linkedMatches = allMatches.filter(m => m.rivalryId === r.id);
+                const matchesHTML = linkedMatches.length > 0 ? `
+                    <div style="margin-top:10px; padding:10px; background:var(--card-bg); border-left:3px solid var(--danger);">
+                        <strong>Linked Matches (${linkedMatches.length}):</strong>
+                        ${linkedMatches.map(m => {
+                            const participants = [m.participant1, m.participant2, m.participant3, m.participant4, m.participant5, m.participant6, m.participant7, m.participant8].filter(Boolean).join(' vs ');
+                            const statusBadge = `<span class="badge ${m.result === 'Pending' ? 'badge-warning' : 'badge-success'}">${m.result}</span>`;
+                            return `<p style="margin:5px 0; font-size:0.9em;">
+                                ⚔️ ${new Date(m.date).toLocaleDateString()} - ${m.type}: ${participants} ${statusBadge}
+                            </p>`;
+                        }).join('')}
+                    </div>
+                ` : '<p style="margin:10px 0; color:var(--text-muted); font-size:0.9em;">No matches linked yet</p>';
+                
+                html += `<div class="card" style="margin-bottom:15px; border-left:3px solid var(--danger);">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <h4 style="color:var(--danger); margin:0;">⚔️ ${r.wrestler1} vs ${r.wrestler2}</h4>
+                        <div>${showBadge} ${statusBadge}</div>
+                    </div>
+                    <p style="margin:10px 0; color:var(--text-muted);">${r.description || 'No description'}</p>
+                    <p style="margin:5px 0; font-size:0.9em; color:var(--text-muted);">Started: ${r.startDate ? new Date(r.startDate).toLocaleDateString() : 'N/A'} ${r.endDate ? ` | Ended: ${new Date(r.endDate).toLocaleDateString()}` : ''}</p>
+                    ${matchesHTML}
+                    <div class="action-buttons" style="margin-top:10px;">
+                        <button class="btn btn-secondary" onclick="editRivalry(${r.id})">Edit</button>
+                        <button class="btn btn-danger" onclick="deleteRivalry(${r.id})">Delete</button>
+                    </div>
+                </div>`;
+            });
+
+            document.getElementById('rivalriesContainer').innerHTML = html;
+        }
+
+        function filterRivalries() {
+            const show = document.getElementById('rivalryShowFilter').value;
+            const status = document.getElementById('rivalryStatusFilter').value;
+            const filtered = allRivalries.filter(r => {
+                return (!show || r.show === show) && (!status || r.status === status);
+            });
+            displayRivalries(filtered);
+        }
+
+        function openAddRivalryModal() {
+            const html = `
+                <div id="rivalryModal" class="modal active">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2>Create Rivalry</h2>
+                            <button class="close-btn" onclick="document.getElementById('rivalryModal').remove()">&times;</button>
+                        </div>
+                        <form onsubmit="saveRivalry(event)">
+                            <input type="hidden" id="rivalryId">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Wrestler 1 *</label>
+                                    <select id="rivalryWrestler1" required>
+                                        <option value="">Select Wrestler</option>
+                                        ${wrestlers.map(w => `<option value="${w.name}">${w.name}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Wrestler 2 *</label>
+                                    <select id="rivalryWrestler2" required>
+                                        <option value="">Select Wrestler</option>
+                                        ${wrestlers.map(w => `<option value="${w.name}">${w.name}</option>`).join('')}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Description</label>
+                                <textarea id="rivalryDescription" rows="3"></textarea>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Show</label>
+                                    <select id="rivalryShow">
+                                        <option value="">All Shows</option>
+                                        ${shows.map(s => `<option value="${s.name}">${s.name}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Status</label>
+                                    <select id="rivalryStatus">
+                                        <option value="Active">Active</option>
+                                        <option value="Completed">Completed</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Start Date</label>
+                                    <input type="date" id="rivalryStartDate">
+                                </div>
+                                <div class="form-group">
+                                    <label>End Date</label>
+                                    <input type="date" id="rivalryEndDate">
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-secondary" onclick="document.getElementById('rivalryModal').remove()">Cancel</button>
+                                <button type="submit" class="btn btn-success">Save</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', html);
+        }
+
+        async function saveRivalry(e) {
+            e.preventDefault();
+            const id = document.getElementById('rivalryId').value;
+            const wrestler1 = document.getElementById('rivalryWrestler1').value;
+            const wrestler2 = document.getElementById('rivalryWrestler2').value;
+            const description = document.getElementById('rivalryDescription').value;
+            const show = document.getElementById('rivalryShow').value;
+            const status = document.getElementById('rivalryStatus').value;
+            const startDate = document.getElementById('rivalryStartDate').value;
+            const endDate = document.getElementById('rivalryEndDate').value;
+
+            const isEdit = !!id;
+            const url = isEdit ? `${API}/rivalries/${id}` : `${API}/rivalries`;
+            const method = isEdit ? 'PUT' : 'POST';
+
+            try {
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ wrestler1, wrestler2, description, show, status, startDate, endDate })
+                });
+                if (res.ok) {
+                    document.getElementById('rivalryModal').remove();
+                    await loadRivalries();
+                } else {
+                    alert('Error saving rivalry');
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                alert('Error saving rivalry');
+            }
+        }
+
+        function editRivalry(id) {
+            const r = allRivalries.find(x => x.id === id);
+            if (!r) return;
+            openAddRivalryModal();
+            setTimeout(() => {
+                document.getElementById('rivalryId').value = id;
+                document.getElementById('rivalryWrestler1').value = r.wrestler1;
+                document.getElementById('rivalryWrestler2').value = r.wrestler2;
+                document.getElementById('rivalryDescription').value = r.description || '';
+                document.getElementById('rivalryShow').value = r.show || '';
+                document.getElementById('rivalryStatus').value = r.status;
+                document.getElementById('rivalryStartDate').value = r.startDate || '';
+                document.getElementById('rivalryEndDate').value = r.endDate || '';
+                document.querySelector('#rivalryModal .modal-header h2').textContent = 'Edit Rivalry';
+            }, 10);
+        }
+
+        async function deleteRivalry(id) {
+            if (!confirm('Delete this rivalry?')) return;
+            try {
+                await fetch(`${API}/rivalries/${id}`, { method: 'DELETE' });
+                await loadRivalries();
+            } catch (err) {
+                console.error('Error:', err);
+            }
+        }
+
+        // Load storylines and rivalries on tab switch
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const tab = btn.dataset.tab;
+                if (tab === 'storylines') {
+                    await loadStorylines();
+                    await loadRivalries();
+                }
+            });
+        });
+
+        async function createRivalryFromMatch(matchId) {
+            const match = allMatches.find(m => m.id === matchId);
+            if (!match) return;
+            const participants = [match.participant1, match.participant2, match.participant3, match.participant4, match.participant5, match.participant6, match.participant7, match.participant8].filter(Boolean);
+            if (participants.length < 2) { alert('Match must have at least 2 participants'); return; }
+            // Remove any existing modal first
+            const existingModal = document.getElementById('rivalryFromMatchModal');
+            if (existingModal) existingModal.remove();
+            const html = `<div id="rivalryFromMatchModal" class="modal active"><div class="modal-content"><div class="modal-header"><h2>Create Rivalry from Match</h2><button class="close-btn" onclick="document.getElementById('rivalryFromMatchModal').remove()">&times;</button></div><form onsubmit="saveRivalryFromMatch(event, ${matchId})"><div class="form-row"><div class="form-group"><label>Wrestler in Match *</label><select id="rivalryMatchWrestler" required><option value="">Select Wrestler</option>${participants.map(p => `<option value="${p}">${p}</option>`).join('')}</select></div><div class="form-group"><label>Rival (Any Wrestler) *</label><select id="rivalryOpponent" required><option value="">Select Wrestler</option>${wrestlers.map(w => `<option value="${w.name}">${w.name}</option>`).join('')}</select></div></div><div class="form-group"><label>Show *</label><select id="rivalryMatchShow" required><option value="">Select Show</option>${shows.map(s => `<option value="${s.name}">${s.name}</option>`).join('')}</select></div><div class="form-group"><label>Status *</label><select id="rivalryMatchStatus" required><option value="Active">Active</option><option value="On Hold">On Hold</option><option value="Completed">Completed</option></select></div><div class="form-row"><div class="form-group"><label>Start Date *</label><input type="date" id="rivalryMatchStartDate" required value="${match.date.split('T')[0]}"></div><div class="form-group"><label>End Date</label><input type="date" id="rivalryMatchEndDate"></div></div><div class="form-group"><label>Description</label><textarea id="rivalryMatchDescription" rows="3">${match.notes || ''}</textarea></div><div class="form-actions"><button type="button" class="btn btn-secondary" onclick="document.getElementById('rivalryFromMatchModal').remove()">Cancel</button><button type="submit" class="btn btn-primary">Create Rivalry</button></div></form></div></div>`;
+            document.body.insertAdjacentHTML('beforeend', html);
+        }
+
+        async function saveRivalryFromMatch(e, matchId) {
+            e.preventDefault();
+            const wrestler1 = document.getElementById('rivalryMatchWrestler').value;
+            const wrestler2 = document.getElementById('rivalryOpponent').value;
+            const show = document.getElementById('rivalryMatchShow').value;
+            const status = document.getElementById('rivalryMatchStatus').value;
+            const startDate = document.getElementById('rivalryMatchStartDate').value;
+            const endDate = document.getElementById('rivalryMatchEndDate').value || null;
+            const description = document.getElementById('rivalryMatchDescription').value;
+            if (wrestler1 === wrestler2) { alert('Please select different wrestlers'); return; }
+            try {
+                const res = await fetch(`${API}/rivalries`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ wrestler1, wrestler2, show, status, startDate, endDate, description }) });
+                if (res.ok) { document.getElementById('rivalryFromMatchModal').remove(); await loadRivalriesForStorylines(); alert('Rivalry created!'); }
+                else { const err = await res.json(); alert(err.error || 'Error creating rivalry'); }
+            } catch (err) { console.error(err); alert('Error creating rivalry'); }
+        }
     </script>
 </body>
 </html>
