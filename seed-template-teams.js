@@ -1,0 +1,62 @@
+import Database from 'better-sqlite3';
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const db = new Database(path.join(__dirname, 'data/template.db'));
+const teams = [
+  ['#DIY','NXT','Johnny Gargano,Candice LeRae'],
+  ['3 Minute Warning',null,'Jamal,Rosey'],
+  ['AJ Lee & CM Punk',null,'AJ Lee,CM Punk'],
+  ['Alexa Bliss & Charlotte Flair',null,'Alexa Bliss,Charlotte Flair'],
+  ['Alpha Academy','RAW','Akira Tozawa,Maxxine Dupri,Otis'],
+  ['American Made','NXT','Brutus Creed,Ivy Nile,Julius Creed'],
+  ['Birth Right','NXT','Channing Lorenzo,Charlie Dempsey,Lexis King'],
+  ['Brothers of Destruction',null,'Kane,Undertaker'],
+  ['Chelsea Green & The Secret Service','SmackDown','Chelsea Green,Piper Niven,Alba Fyre'],
+  ['D-Generation X',null,'Shawn Michaels,Triple H'],
+  ['Damian Priest & R-Truth','RAW','Damian Priest,R-Truth'],
+  ['Death Riders','AEW','Claudio Castagnoli,Jon Moxley,Pac,Wheeler Yuta'],
+  ['FTR','AEW','Cash Wheeler,Dax Harwood'],
+  ['Fraxiom','NXT','Axiom,Nathan Frazer'],
+  ['Giulia & Kiana James',null,'Giulia,Kiana James'],
+  ['Hank & Tank','NXT','Hank Walker,Tank Ledger'],
+  ['House of Black','AEW','Aleister Black,Brody King,Buddy Matthews,Julia Hart,Zelina Vega'],
+  ['LWO - Latino World Order',null,'Cruz Del Toro,Dragon Lee,Joaquin Wilde,Rey Mysterio'],
+  ['Las Toxicas','AAA','Flammer,La Hiedra'],
+  ["LA Park's",'AAA','La Park,La Parka'],
+  ['Local Rift','NXT','LJ,Odyssey Rift'],
+  ['Los Americanos','AAA','Bravo Americano,El Grande Americano'],
+  ['Los Garza','AAA','Angel,Berto'],
+  ['Lucha House Party',null,'Kalisto,Lince Dorado,Sin Cara'],
+  ['MFT',null,'JC Mateo,Solo Sikoa,Talla Tonga,Tama Tonga,Tonga Loa'],
+  ['MJF and stable','AEW','Adam Cole,Buzz,Lock,MJF,Ryback'],
+  ['Motor City Machine Guns','TNA','Alex Shelley,Chris Sabin'],
+  ['Old Buddies',null,'Chris Jericho,Christian Cage,Edge'],
+  ['Pretty Deadly',null,'Elton Prince,Kit Wilson'],
+  ['Red Eternal',null,'Hope Eternal,Red'],
+  ['Rhiyo','RAW','Iyo Sky,Rhea Ripley'],
+  ['Role Model & Valkyria',null,'Bayley,Lyra Valkyria'],
+  ['Sting & Darby','AEW','Darby Allin,Sting'],
+  ['The Culling',null,'Izzi Dame,Shawn Spears'],
+  ['The Dudley Boyz',null,'Bubba Ray Dudley,D-Von Dudley'],
+  ['The Fatal Influence','NXT','Fallon Henley,Jacy Jayne,Jazmyn Nyx'],
+  ['The Flock',null,'Perry Saturn,Raven'],
+  ['The Head Bangers',null,'Mosh,Thrasher'],
+  ['The Irresistible Forces','RAW','Lash Legend,Nia Jax'],
+  ['The Judgment Day','RAW','Dirty Dominik Mysterio,JD McDonagh,Liv Morgan,Raquel Rodriguez,Roxanne Perez'],
+  ['The Kabuki Warriors',null,'Asuka,Kairi Sane'],
+  ['The Miz & Maryse',null,'Maryse,Miz'],
+  ['The New Day','RAW','Grayson Waller,Kofi Kingston,Xavier Woods'],
+  ['The Street Profits',null,'Angelo Dawkins,Montez Ford'],
+  ['The Takeover',null,'B-Fab,Jade Cargill,Michin'],
+  ['The Usos',null,'Jey Uso,Jimmy Uso'],
+  ['The Vision','RAW','Austin Theory,Bron Breakker,Bronson Reed,Logan Paul'],
+  ['The War Raiders','RAW','Erik,Ivar'],
+  ['The Wyatt Sicks','RAW','Dexter Lumis,Erick Rowan,Joe Gacy,Nikki Cross,Uncle Howdy'],
+  ['Tre & Chase','NXT','Chase,TRE'],
+  ['Young Bucks','AEW','Matt Jackson,Nick Jackson'],
+];
+const ins = db.prepare('INSERT OR IGNORE INTO teams (name, show, members) VALUES (?, ?, ?)');
+db.transaction(() => { for (const t of teams) ins.run(t[0], t[1], t[2]); })();
+console.log('✅ Seeded', db.prepare('SELECT COUNT(*) as c FROM teams').get().c, 'teams into template.db');
+db.close();

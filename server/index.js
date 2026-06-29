@@ -8,6 +8,7 @@ import fs from 'fs';
 import multer from 'multer';
 import { parse } from 'csv-parse/sync';
 import Database from './db.js';
+import BetterSqlite3 from 'better-sqlite3';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -22,8 +23,26 @@ app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, '../public')));
 
-const db = new Database();
+let db = new Database();
 db.init();
+
+// Middleware to ensure DB is using active account
+function ensureActiveAccountDb(req, res, next) {
+  const activeAccount = db.getActiveAccount();
+  if (activeAccount && activeAccount.dbFileName) {
+    // Check if we need to switch DB
+    const currentDbFile = path.basename(db.db.name);
+    if (currentDbFile !== activeAccount.dbFileName) {
+      console.log(`Switching to account: ${activeAccount.name} (${activeAccount.dbFileName})`);
+      db.close();
+      db = new Database(activeAccount.dbFileName);
+      db.init();
+    }
+  }
+  next();
+}
+
+app.use('/api', ensureActiveAccountDb);
 
 // ==================== SHOWS ====================
 app.get('/api/shows', (req, res) => {
@@ -113,16 +132,35 @@ app.post('/api/shows/advance-week', (req, res) => {
 // ==================== WRESTLERS ====================
 app.get('/api/wrestlers', (req, res) => {
   const { show } = req.query;
-  res.json(show ? db.getWrestlersByShow(show) : db.getAllWrestlers());
+  const wrestlers = show ? db.getWrestlersByShow(show) : db.getAllWrestlers();
+  // Enrich with shows array from junction table
+  const enriched = wrestlers.map(w => {
+    const showsData = db.db.prepare('SELECT showName FROM wrestler_shows WHERE wrestlerId = ?').all(w.id);
+    return {
+      ...w,
+      shows: showsData.length > 0 ? showsData.map(s => s.showName) : (w.show ? [w.show] : [])
+    };
+  });
+  res.json(enriched);
 });
 
 app.post('/api/wrestlers', (req, res) => {
   try {
     const { name, shows, division, status, imageUrl, gender, overall, alignment, titles } = req.body;
-    if (!name || !shows || (Array.isArray(shows) && shows.length === 0)) return res.status(400).json({ error: 'Name and at least one show are required' });
-    const id = db.addWrestler(name, shows, division || 'Unassigned', status || 'Active', imageUrl || '', gender || '', overall || null, alignment || '', titles || '');
+    if (!name || !shows || shows.length === 0) return res.status(400).json({ error: 'Name and at least one show are required' });
+    
+    const primaryShow = shows[0];
+    const id = db.addWrestler(name, primaryShow, division || 'Unassigned', status || 'Active', imageUrl || '', gender || '', overall || null, alignment || '', titles || '');
+    
+    // Add all shows to junction table
+    const insertJunction = db.db.prepare('INSERT OR IGNORE INTO wrestler_shows (wrestlerId, showName, isPrimary) VALUES (?, ?, ?)');
+    shows.forEach((show, index) => {
+      insertJunction.run(id, show, index === 0 ? 1 : 0);
+    });
+    
     const wrestler = db.getWrestlerById(id);
-    res.json(wrestler);
+    const showsData = db.db.prepare('SELECT showName FROM wrestler_shows WHERE wrestlerId = ?').all(id);
+    res.json({ ...wrestler, shows: showsData.map(s => s.showName) });
   } catch (err) {
     console.error('Error adding wrestler:', err);
     res.status(500).json({ error: err.message });
@@ -133,9 +171,22 @@ app.put('/api/wrestlers/:id', (req, res) => {
   try {
     const { id } = req.params;
     const { name, shows, division, status, imageUrl, gender, overall, alignment, titles } = req.body;
-    db.updateWrestler(id, name, shows, division, status, imageUrl, gender, overall, alignment, titles);
+    
+    if (!shows || shows.length === 0) return res.status(400).json({ error: 'At least one show is required' });
+    
+    const primaryShow = shows[0];
+    db.updateWrestler(id, name, primaryShow, division, status, imageUrl, gender, overall, alignment, titles);
+    
+    // Update junction table
+    db.db.prepare('DELETE FROM wrestler_shows WHERE wrestlerId = ?').run(id);
+    const insertJunction = db.db.prepare('INSERT INTO wrestler_shows (wrestlerId, showName, isPrimary) VALUES (?, ?, ?)');
+    shows.forEach((show, index) => {
+      insertJunction.run(id, show, index === 0 ? 1 : 0);
+    });
+    
     const wrestler = db.getWrestlerById(id);
-    res.json(wrestler);
+    const showsData = db.db.prepare('SELECT showName FROM wrestler_shows WHERE wrestlerId = ?').all(id);
+    res.json({ ...wrestler, shows: showsData.map(s => s.showName) });
   } catch (err) {
     console.error('Error updating wrestler:', err);
     res.status(500).json({ error: err.message });
@@ -193,17 +244,17 @@ app.get('/api/championships', (req, res) => {
 });
 
 app.post('/api/championships', (req, res) => {
-  const { name, show, holder, debutDate, notes } = req.body;
+  const { name, show, holder, holder2, debutDate, notes, type } = req.body;
   if (!name || !show) return res.status(400).json({ error: 'Name and show are required' });
-  const id = db.addChampionship(name, show, holder || 'Vacant', debutDate || new Date().toISOString(), notes || '');
-  res.json({ id, name, show, holder, debutDate, notes });
+  const id = db.addChampionship(name, show, holder || 'Vacant', holder2 || null, debutDate || new Date().toISOString(), notes || '', type || 'Single');
+  res.json({ id, name, show, holder, holder2, debutDate, notes, type });
 });
 
 app.put('/api/championships/:id', (req, res) => {
   const { id } = req.params;
-  const { name, show, holder, debutDate, notes } = req.body;
-  db.updateChampionship(id, name, show, holder, debutDate, notes);
-  res.json({ id, name, show, holder, debutDate, notes });
+  const { name, show, holder, holder2, debutDate, notes, type } = req.body;
+  db.updateChampionship(id, name, show, holder, holder2 || null, debutDate, notes, type || 'Single');
+  res.json({ id, name, show, holder, holder2, debutDate, notes, type });
 });
 
 app.delete('/api/championships/:id', (req, res) => {
@@ -248,22 +299,29 @@ app.delete('/api/events/:id', (req, res) => {
 // ==================== TEAMS ====================
 app.get('/api/teams', (req, res) => {
   const rows = db.getAllTeams();
-  res.json(rows.map(t => ({ ...t, members: t.members ? t.members.split(',').map(m => m.trim()).filter(Boolean) : [] })));
+  res.json(rows.map(t => ({ 
+    ...t, 
+    members: t.members ? t.members.split(',').map(m => m.trim()).filter(Boolean) : [],
+    tagTeamPairs: t.tagTeamPairs ? JSON.parse(t.tagTeamPairs) : [],
+    shows: t.shows ? JSON.parse(t.shows) : (t.show ? [t.show] : [])
+  })));
 });
 
 app.post('/api/teams', (req, res) => {
-  const { name, show, members } = req.body;
+  const { name, show, members, tagTeamPairs, shows } = req.body;
   if (!name) return res.status(400).json({ error: 'Team name required' });
   try {
-    const id = db.addTeam(name, show || null, members || []);
-    res.json({ id, name, show, members: members || [] });
+    const tagTeamPairsStr = tagTeamPairs && tagTeamPairs.length > 0 ? JSON.stringify(tagTeamPairs) : null;
+    const id = db.addTeam(name, show || null, members || [], tagTeamPairsStr, shows || []);
+    res.json({ id, name, show, members: members || [], tagTeamPairs: tagTeamPairs || [], shows: shows || [] });
   } catch(e) { res.status(400).json({ error: 'Team name already exists' }); }
 });
 
 app.put('/api/teams/:id', (req, res) => {
-  const { name, show, members } = req.body;
+  const { name, show, members, tagTeamPairs, shows } = req.body;
   try {
-    db.updateTeam(req.params.id, name, show || null, members || []);
+    const tagTeamPairsStr = tagTeamPairs && tagTeamPairs.length > 0 ? JSON.stringify(tagTeamPairs) : null;
+    db.updateTeam(req.params.id, name, show || null, members || [], tagTeamPairsStr, shows || []);
     res.json({ success: true });
   } catch(e) { res.status(400).json({ error: e.message }); }
 });
@@ -284,11 +342,7 @@ app.post('/api/transfers', (req, res) => {
   const id = db.addTransfer(wrestlerId, fromShow, toShow, date || new Date().toISOString(), reason || '');
   const wrestler = db.getWrestlerById(wrestlerId);
   if (wrestler) {
-    // Update shows: remove fromShow if exists, add toShow if not exists
-    let shows = wrestler.shows || [];
-    shows = shows.filter(s => s !== fromShow);
-    if (!shows.includes(toShow)) shows.push(toShow);
-    db.updateWrestler(wrestlerId, wrestler.name, shows, wrestler.division, wrestler.status, wrestler.imageUrl, wrestler.gender, wrestler.overall, wrestler.alignment, wrestler.titles);
+    db.updateWrestler(wrestlerId, wrestler.name, toShow, wrestler.division, wrestler.status, wrestler.imageUrl, wrestler.gender, wrestler.overall, wrestler.alignment, wrestler.titles);
   }
   res.json({ id, wrestlerId, fromShow, toShow, date, reason });
 });
@@ -370,6 +424,90 @@ app.put('/api/rivalries/:id', (req, res) => {
 app.delete('/api/rivalries/:id', (req, res) => {
   db.deleteRivalry(req.params.id);
   res.json({ success: true });
+});
+
+// ==================== ACCOUNTS ====================
+app.get('/api/accounts', (req, res) => {
+  res.json(db.getAllAccounts());
+});
+
+app.get('/api/accounts/active', (req, res) => {
+  res.json(db.getActiveAccount());
+});
+
+app.post('/api/accounts', (req, res) => {
+  const { name } = req.body;
+  if (!name) return res.status(400).json({ error: 'Account name is required' });
+  try {
+    const dbFileName = `${name.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Date.now()}.db`;
+    const id = db.addAccount(name, dbFileName);
+    
+    // Copy template database to new account database
+    const templatePath = path.join(__dirname, '../data/template.db');
+    const newAccountPath = path.join(__dirname, '../data', dbFileName);
+    
+    if (fs.existsSync(templatePath)) {
+      fs.copyFileSync(templatePath, newAccountPath);
+      console.log(`✅ Created new account database from template: ${dbFileName}`);
+    } else {
+      // If template doesn't exist, copy from default.db
+      const defaultPath = path.join(__dirname, '../data/default.db');
+      if (fs.existsSync(defaultPath)) {
+        fs.copyFileSync(defaultPath, newAccountPath);
+        console.log(`✅ Created new account database from default.db: ${dbFileName}`);
+      } else {
+        // Last resort: create empty database
+        const tempDb = new Database(dbFileName);
+        tempDb.init();
+        tempDb.close();
+        console.log(`⚠️ No template found, created empty database: ${dbFileName}`);
+      }
+    }
+    // Seed default teams into the new account DB if table is empty
+    const newAccountDb = new Database(dbFileName);
+    const teamCount = newAccountDb.db.prepare('SELECT COUNT(*) as count FROM teams').get().count;
+    if (teamCount === 0) newAccountDb.insertDefaultTeams();
+    newAccountDb.close();
+    
+    res.json({ id, name, dbFileName, isActive: 0 });
+  } catch (err) {
+    console.error('Error creating account:', err);
+    res.status(400).json({ error: 'Account name already exists or error occurred' });
+  }
+});
+
+app.post('/api/accounts/:id/activate', (req, res) => {
+  const { id } = req.params;
+  try {
+    const account = db.getAllAccounts().find(a => a.id === parseInt(id));
+    if (!account) return res.status(404).json({ error: 'Account not found' });
+    
+    db.setActiveAccount(id);
+    
+    // Reinitialize DB with new account
+    db.close();
+    db = new Database(account.dbFileName);
+    db.init();
+    
+    res.json({ success: true, message: 'Account activated successfully.' });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/accounts/:id', (req, res) => {
+  try {
+    const account = db.deleteAccount(req.params.id);
+    if (account && account.dbFileName) {
+      const dbPath = path.join(__dirname, '../data', account.dbFileName);
+      if (fs.existsSync(dbPath)) {
+        fs.unlinkSync(dbPath);
+      }
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 // ==================== DASHBOARD ====================

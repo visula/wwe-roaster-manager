@@ -331,8 +331,15 @@
 <body>
     <div class="container">
         <header>
-            <h1><span>Universe</span> Mode Manager</h1>
-            <p>2K26 · Roster &amp; Match Scheduling System</p>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                    <h1><span>Universe</span> Mode Manager</h1>
+                    <p>2K26 · Roster &amp; Match Scheduling System</p>
+                </div>
+                <div id="activeAccountBadge" style="text-align:right;">
+                    <span class="badge badge-info" style="font-size:0.85em;padding:6px 12px;">Loading...</span>
+                </div>
+            </div>
         </header>
         <div class="nav-tabs">
             <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
@@ -344,6 +351,7 @@
             <button class="nav-btn" data-tab="mainevents">Main Events</button>
             <button class="nav-btn" data-tab="teams">Teams</button>
             <button class="nav-btn" data-tab="showsmgmt">Shows</button>
+            <button class="nav-btn" data-tab="accounts">Accounts</button>
             <button class="nav-btn" data-tab="setup">Season Setup</button>
         </div>
 
@@ -565,6 +573,7 @@
                     <thead>
                         <tr>
                             <th data-table="champ" data-col="name">Title</th>
+                            <th data-table="champ" data-col="type">Type</th>
                             <th data-table="champ" data-col="show">Show</th>
                             <th data-table="champ" data-col="holder">Current Holder</th>
                             <th data-table="champ" data-col="debutDate">Debut Date</th>
@@ -572,7 +581,7 @@
                         </tr>
                     </thead>
                     <tbody id="championshipsTable">
-                        <tr><td colspan="5" class="no-data">Loading championships...</td></tr>
+                        <tr><td colspan="6" class="no-data">Loading championships...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -716,6 +725,82 @@
 
         <!-- Shows Management Tab -->
         <div id="showsmgmt" class="tab-content">
+            <div class="section-header">
+                <h2>Shows</h2>
+                <button class="btn btn-primary" onclick="openAddShowModal()">+ Add Show</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Abbreviation</th>
+                            <th>Broadcast Day</th>
+                            <th>Type</th>
+                            <th>Next Episode</th>
+                            <th>Match Limit</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="showsTable">
+                        <tr><td colspan="7" class="no-data">Loading shows...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Accounts Tab -->
+        <div id="accounts" class="tab-content">
+            <div class="section-header">
+                <h2>Accounts</h2>
+                <button class="btn btn-primary" onclick="openAddAccountModal()">+ Create New Account</button>
+            </div>
+            <div class="card" style="background:rgba(204,0,0,0.1);border-left-color:var(--red);">
+                <h3 style="color:var(--red);margin-bottom:10px;">ℹ️ About Accounts</h3>
+                <p style="color:var(--text);margin-bottom:8px;">Accounts allow you to manage multiple separate save files for different Universe Mode playthroughs.</p>
+                <p style="color:var(--text-muted);font-size:0.85em;">• Each account has its own roster, matches, championships, and storylines<br>• Switch between accounts to manage different saves<br>• Only one account can be active at a time</p>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Account Name</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="accountsTable">
+                        <tr><td colspan="4" class="no-data">Loading accounts...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Account Modal -->
+    <div id="accountModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create New Account</h2>
+                <button class="close-btn" onclick="closeModal('accountModal')">&times;</button>
+            </div>
+            <form onsubmit="saveAccount(event)">
+                <div class="form-group">
+                    <label>Account Name *</label>
+                    <input type="text" id="accountName" placeholder="e.g. My Universe 2026" required>
+                    <small style="color:var(--text-muted);font-size:0.8em;display:block;margin-top:4px;">Give your Universe Mode save a memorable name</small>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('accountModal')">Cancel</button>
+                    <button type="submit" class="btn btn-success">Create Account</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Shows Management Tab -->
+    <div id="showsmgmt" style="display:none;" class="tab-content">
             <div class="section-header">
                 <h2>Shows</h2>
                 <button class="btn btn-primary" onclick="openAddShowModal()">+ Add Show</button>
@@ -895,15 +980,27 @@
                     </div>
                     <div class="form-group">
                         <label>Show / Brand</label>
-                        <select id="teamShow">
-                            <option value="">All Shows</option>
-                        </select>
+                        <div id="teamShowsContainer" style="display: flex; flex-direction: column; gap: 8px;">
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <select id="teamShowSelect" style="flex: 1;">
+                                    <option value="">Select Show...</option>
+                                </select>
+                                <button type="button" onclick="addTeamShow()" class="btn btn-secondary" style="padding: 6px 12px;">+ Add</button>
+                            </div>
+                            <div id="selectedTeamShows" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
+                        </div>
                     </div>
                 </div>
                 <div class="form-group">
                     <label>Members</label>
+                    <small style="color:var(--text-muted);font-size:0.8em;display:block;margin-bottom:8px;">Wrestlers will be filtered by the selected shows above</small>
                     <div id="teamMembersContainer" style="display:flex;flex-direction:column;gap:8px;margin-top:8px;"></div>
                     <button type="button" class="btn btn-secondary" style="margin-top:8px;" onclick="addTeamMemberSlot()">+ Add Member</button>
+                </div>
+                <div class="form-group">
+                    <label>Tag Team Pairs <small>(specify which 2 members form tag teams)</small></label>
+                    <div id="tagTeamPairsContainer" style="display:flex;flex-direction:column;gap:8px;margin-top:8px;"></div>
+                    <button type="button" class="btn btn-secondary" style="margin-top:8px;" onclick="addTagPairSlot()">+ Add Tag Pair</button>
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('teamModal')">Cancel</button>
@@ -1236,22 +1333,45 @@
                         <input type="text" id="champName" required>
                     </div>
                     <div class="form-group">
-                        <label>Show *</label>
-                        <select id="champShow" required onchange="onChampShowChange()">
-                            <option value="">Select Show</option>
+                        <label>Type *</label>
+                        <select id="champType" required onchange="onChampTypeChange()">
+                            <option value="Single">Single</option>
+                            <option value="Tag">Tag Team</option>
                         </select>
                     </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Current Holder</label>
-                        <select id="champHolder">
-                            <option value="Vacant">Vacant</option>
+                        <label>Show *</label>
+                        <select id="champShow" required onchange="onChampShowChange()">
+                            <option value="">Select Show</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label>Debut Date *</label>
                         <input type="date" id="champDebutDate" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Current Holder *</label>
+                        <select id="champHolder" required>
+                            <option value="Vacant">Vacant</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="champHolder2Group" style="display:none;">
+                        <label>Tag Team Partner *</label>
+                        <select id="champHolder2" required>
+                            <option value="">Select Partner</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row" id="champTeamSelectGroup" style="display:none;">
+                    <div class="form-group">
+                        <label>Or Select Team Directly</label>
+                        <select id="champTeamSelect" onchange="onChampTeamSelected()">
+                            <option value="">Choose a team to auto-fill holders</option>
+                        </select>
                     </div>
                 </div>
                 <div class="form-group">
@@ -1314,6 +1434,7 @@
         let allTeams = [];    // teams from DB
         let allStorylines = [];
         let allRivalries = [];
+        let allAccounts = [];
 
         // ==================== TEAMS DATA (seeded from DB; fallback hardcoded list) ====================
         const BUILTIN_TEAMS = [
@@ -2180,6 +2301,7 @@
             loadTransfers();
             loadTeams();
             loadEvents();
+            loadAccounts();
         });
 
         function setupNavigation() {
@@ -2442,16 +2564,22 @@
 
         function displayTeams() {
             const html = allTeams.length > 0
-                ? allTeams.map(t => `<tr>
+                ? allTeams.map(t => {
+                    const showBadges = (t.shows && t.shows.length > 0 ? t.shows : (t.show ? [t.show] : [])).map(s => 
+                        `<span class="badge badge-info" style="margin:2px;">${s}</span>`
+                    ).join('');
+                    const showDisplay = showBadges || '<span class="badge badge-warning">All Shows</span>';
+                    return `<tr>
                     <td><strong>${t.name}</strong></td>
-                    <td>${t.show ? `<span class="badge badge-info">${t.show}</span>` : '<span class="badge badge-warning">All Shows</span>'}</td>
+                    <td>${showDisplay}</td>
                     <td>${t.members.join(', ')}</td>
                     <td><span class="badge badge-info">${t.members.length}</span></td>
                     <td><div class="action-buttons">
                         <button class="btn btn-secondary" onclick="editTeam(${t.id})">Edit</button>
                         <button class="btn btn-danger" onclick="deleteTeam(${t.id})">Delete</button>
                     </div></td>
-                </tr>`).join('')
+                </tr>`;
+                }).join('')
                 : '<tr><td colspan="5" class="no-data">No custom teams yet. Add teams above or use the built-in defaults.</td></tr>';
             document.getElementById('teamsTable').innerHTML = html;
         }
@@ -2461,29 +2589,79 @@
             document.getElementById('teamModalTitle').textContent = 'Add Team / Faction';
             document.getElementById('teamName').value = '';
             populateTeamShowSelect();
-            document.getElementById('teamShow').value = '';
+            selectedTeamShows = [];
+            renderSelectedTeamShows();
             buildTeamMemberSlots([]);
+            buildTagPairSlots([]);
             openModal('teamModal');
         }
 
+        let selectedTeamShows = [];
+
         function populateTeamShowSelect() {
-            const sel = document.getElementById('teamShow');
+            const sel = document.getElementById('teamShowSelect');
             const cur = sel.value;
-            sel.innerHTML = '<option value="">All Shows</option>';
+            sel.innerHTML = '<option value="">Select Show...</option>';
             shows.forEach(s => { const o = document.createElement('option'); o.value = s.name; o.textContent = s.name; sel.appendChild(o); });
             if (cur) sel.value = cur;
+        }
+
+        function addTeamShow() {
+            const sel = document.getElementById('teamShowSelect');
+            const showName = sel.value;
+            if (!showName) return;
+            if (selectedTeamShows.includes(showName)) {
+                alert('This show is already added');
+                return;
+            }
+            selectedTeamShows.push(showName);
+            renderSelectedTeamShows();
+            const members = Array.from(document.querySelectorAll('.teamMemberSelect')).map(s => s.value).filter(Boolean);
+            buildTeamMemberSlots(members.length > 0 ? members : ['']);
+            updateTagPairDropdowns();
+            sel.value = '';
+        }
+
+        function removeTeamShow(showName) {
+            selectedTeamShows = selectedTeamShows.filter(s => s !== showName);
+            renderSelectedTeamShows();
+            const members = Array.from(document.querySelectorAll('.teamMemberSelect')).map(s => s.value).filter(Boolean);
+            buildTeamMemberSlots(members.length > 0 ? members : ['']);
+            updateTagPairDropdowns();
+        }
+
+        function renderSelectedTeamShows() {
+            const container = document.getElementById('selectedTeamShows');
+            if (selectedTeamShows.length === 0) {
+                container.innerHTML = '<span style="color: #888; font-size: 0.9em;">No shows selected (team can include wrestlers from any show)</span>';
+                return;
+            }
+            container.innerHTML = selectedTeamShows.map(show => 
+                `<span style="background: #8b0000; padding: 4px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 6px;">
+                    ${show}
+                    <button type="button" onclick="removeTeamShow('${show}')" style="background: none; border: none; color: white; cursor: pointer; padding: 0; font-size: 1.1em;">&times;</button>
+                </span>`
+            ).join('');
         }
 
         function buildTeamMemberSlots(members) {
             const container = document.getElementById('teamMembersContainer');
             container.innerHTML = '';
             if (members.length === 0) members = [''];
+            const pool = selectedTeamShows.length > 0 ? wrestlers.filter(w => {
+                const wrestlerShows = w.shows && w.shows.length > 0 ? w.shows : (w.show ? [w.show] : []);
+                return wrestlerShows.some(s => selectedTeamShows.includes(s));
+            }) : wrestlers;
+            
             members.forEach((m, i) => {
                 const div = document.createElement('div');
                 div.className = 'form-row';
-                div.innerHTML = `<select class="teamMemberSelect" style="flex:1;" onchange="onTeamShowFilterChange()">
+                div.innerHTML = `<select class="teamMemberSelect" style="flex:1;">
                     <option value="">Select Wrestler</option>
-                    ${wrestlers.map(w => `<option value="${w.name}">${w.name} (${w.show})</option>`).join('')}
+                    ${pool.map(w => {
+                        const wrestlerShows = w.shows && w.shows.length > 0 ? w.shows : (w.show ? [w.show] : []);
+                        return `<option value="${w.name}">${w.name} (${wrestlerShows.join(', ')})</option>`;
+                    }).join('')}
                 </select>
                 <button type="button" class="btn btn-danger" style="padding:6px 12px;margin-left:8px;" onclick="removeTeamMemberSlot(this)">✕</button>`;
                 container.appendChild(div);
@@ -2492,20 +2670,34 @@
         }
 
         function onTeamShowFilterChange() {
-            const showFilter = document.getElementById('teamShow').value;
             const selects = document.querySelectorAll('.teamMemberSelect');
             selects.forEach(sel => {
                 const cur = sel.value;
                 sel.innerHTML = '<option value="">Select Wrestler</option>';
-                const pool = showFilter ? wrestlers.filter(w => w.show === showFilter) : wrestlers;
-                pool.forEach(w => { const o = document.createElement('option'); o.value = w.name; o.textContent = `${w.name} (${w.show})`; sel.appendChild(o); });
+                const pool = selectedTeamShows.length > 0 ? wrestlers.filter(w => {
+                    const wrestlerShows = w.shows && w.shows.length > 0 ? w.shows : (w.show ? [w.show] : []);
+                    return wrestlerShows.some(s => selectedTeamShows.includes(s));
+                }) : wrestlers;
+                pool.forEach(w => { 
+                    const o = document.createElement('option'); 
+                    o.value = w.name; 
+                    const wrestlerShows = w.shows && w.shows.length > 0 ? w.shows : (w.show ? [w.show] : []);
+                    o.textContent = `${w.name} (${wrestlerShows.join(', ')})`; 
+                    sel.appendChild(o); 
+                });
                 if (cur && pool.find(w => w.name === cur)) sel.value = cur;
             });
         }
 
+        function onTeamShowChange() {
+            const members = Array.from(document.querySelectorAll('.teamMemberSelect')).map(s => s.value).filter(Boolean);
+            buildTeamMemberSlots(members.length > 0 ? members : ['']);
+            updateTagPairDropdowns();
+        }
+
         function addTeamMemberSlot() {
             buildTeamMemberSlots([...Array.from(document.querySelectorAll('.teamMemberSelect')).map(s => s.value), '']);
-            onTeamShowFilterChange();
+            updateTagPairDropdowns();
         }
 
         function removeTeamMemberSlot(btn) {
@@ -2513,7 +2705,76 @@
             const idx = Array.from(btn.parentElement.parentElement.children).indexOf(btn.parentElement);
             members.splice(idx, 1);
             buildTeamMemberSlots(members.length > 0 ? members : ['']);
-            onTeamShowFilterChange();
+            updateTagPairDropdowns();
+        }
+
+        function buildTagPairSlots(pairs) {
+            const container = document.getElementById('tagTeamPairsContainer');
+            container.innerHTML = '';
+            if (pairs.length === 0) pairs = [{ member1: '', member2: '' }];
+            pairs.forEach((pair, i) => {
+                const div = document.createElement('div');
+                div.className = 'form-row';
+                div.innerHTML = `
+                    <select class="tagPairMember1" style="flex:1;" data-idx="${i}">
+                        <option value="">Select Member 1</option>
+                    </select>
+                    <select class="tagPairMember2" style="flex:1;margin-left:8px;" data-idx="${i}">
+                        <option value="">Select Member 2</option>
+                    </select>
+                    <button type="button" class="btn btn-danger" style="padding:6px 12px;margin-left:8px;" onclick="removeTagPairSlot(this)">✕</button>`;
+                container.appendChild(div);
+            });
+            updateTagPairDropdowns();
+            // Set values after dropdowns are populated
+            pairs.forEach((pair, i) => {
+                const selects = container.querySelectorAll(`[data-idx="${i}"]`);
+                if (selects[0] && pair.member1) selects[0].value = pair.member1;
+                if (selects[1] && pair.member2) selects[1].value = pair.member2;
+            });
+        }
+
+        function updateTagPairDropdowns() {
+            const members = Array.from(document.querySelectorAll('.teamMemberSelect')).map(s => s.value).filter(Boolean);
+            const pairSelects = document.querySelectorAll('.tagPairMember1, .tagPairMember2');
+            pairSelects.forEach(sel => {
+                const current = sel.value;
+                sel.innerHTML = '<option value="">Select Member</option>';
+                members.forEach(m => {
+                    const option = document.createElement('option');
+                    option.value = m;
+                    option.textContent = m;
+                    sel.appendChild(option);
+                });
+                if (current && members.includes(current)) sel.value = current;
+            });
+        }
+
+        function addTagPairSlot() {
+            const currentPairs = getTagPairsFromForm();
+            currentPairs.push({ member1: '', member2: '' });
+            buildTagPairSlots(currentPairs);
+        }
+
+        function removeTagPairSlot(btn) {
+            const pairs = getTagPairsFromForm();
+            const idx = Array.from(btn.parentElement.parentElement.children).indexOf(btn.parentElement);
+            pairs.splice(idx, 1);
+            buildTagPairSlots(pairs.length > 0 ? pairs : [{ member1: '', member2: '' }]);
+        }
+
+        function getTagPairsFromForm() {
+            const pairs = [];
+            const member1Selects = document.querySelectorAll('.tagPairMember1');
+            const member2Selects = document.querySelectorAll('.tagPairMember2');
+            member1Selects.forEach((sel1, idx) => {
+                const member1 = sel1.value;
+                const member2 = member2Selects[idx]?.value;
+                if (member1 && member2) {
+                    pairs.push({ member1, member2 });
+                }
+            });
+            return pairs;
         }
 
         function editTeam(id) {
@@ -2523,9 +2784,10 @@
             document.getElementById('teamModalTitle').textContent = 'Edit Team / Faction';
             document.getElementById('teamName').value = t.name;
             populateTeamShowSelect();
-            document.getElementById('teamShow').value = t.show || '';
+            selectedTeamShows = t.shows && Array.isArray(t.shows) && t.shows.length > 0 ? [...t.shows] : (t.show ? [t.show] : []);
+            renderSelectedTeamShows();
             buildTeamMemberSlots(t.members);
-            onTeamShowFilterChange();
+            buildTagPairSlots(t.tagTeamPairs && t.tagTeamPairs.length > 0 ? t.tagTeamPairs : [{ member1: '', member2: '' }]);
             openModal('teamModal');
         }
 
@@ -2533,13 +2795,14 @@
             e.preventDefault();
             const id = document.getElementById('teamEditId').value;
             const name = document.getElementById('teamName').value.trim();
-            const show = document.getElementById('teamShow').value || null;
+            const shows = selectedTeamShows.length > 0 ? selectedTeamShows : [];
             const members = Array.from(document.querySelectorAll('.teamMemberSelect')).map(s => s.value).filter(Boolean);
             if (members.length === 0) return alert('Add at least one team member');
+            const tagTeamPairs = getTagPairsFromForm();
             const method = id ? 'PUT' : 'POST';
             const url = id ? `${API}/teams/${id}` : `${API}/teams`;
             try {
-                const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name, show, members }) });
+                const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name, shows, members, tagTeamPairs }) });
                 if (res.ok) { closeModal('teamModal'); await loadTeams(); }
                 else { const e = await res.json(); alert(e.error || 'Error saving team'); }
             } catch(err) { alert('Error saving team'); }
@@ -2854,11 +3117,16 @@
 
         function displayChampionships(data) {
             const html = data.length > 0
-                ? data.map(c => `
+                ? data.map(c => {
+                    const typeBadge = c.type === 'Tag' 
+                        ? '<span class="badge badge-info">Tag Team</span>' 
+                        : '<span class="badge badge-success">Single</span>';
+                    return `
                     <tr>
                         <td><strong>${c.name}</strong></td>
+                        <td>${typeBadge}</td>
                         <td>${c.show}</td>
-                        <td>${c.holder}</td>
+                        <td>${c.holder}${c.holder2 ? ` & ${c.holder2}` : ''}</td>
                         <td>${new Date(c.debutDate).toLocaleDateString()}</td>
                         <td>
                             <div class="action-buttons">
@@ -2867,8 +3135,9 @@
                             </div>
                         </td>
                     </tr>
-                `).join('')
-                : '<tr><td colspan="5" class="no-data">No championships created</td></tr>';
+                `;
+                }).join('')
+                : '<tr><td colspan="6" class="no-data">No championships created</td></tr>';
             document.getElementById('championshipsTable').innerHTML = html;
         }
 
@@ -4155,18 +4424,28 @@
         function openAddChampionshipModal() {
             document.getElementById('champId').value = '';
             document.getElementById('champName').value = '';
+            document.getElementById('champType').value = 'Single';
             document.getElementById('champShow').selectedIndex = 0;
+            document.getElementById('champHolder').innerHTML = '<option value="Vacant">Vacant</option>';
+            document.getElementById('champHolder2').innerHTML = '<option value="">Select Partner</option>';
             document.getElementById('champDebutDate').value = '';
             document.getElementById('champNotes').value = '';
             document.getElementById('champModalTitle').textContent = 'Add Championship';
+            document.getElementById('champHolder2Group').style.display = 'none';
+            document.getElementById('champHolder2').required = false;
+            document.getElementById('champTeamSelectGroup').style.display = 'none';
+            document.getElementById('champTeamSelect').value = '';
             populateChampionshipHolders('');
             openModal('championshipModal');
         }
 
         function populateChampionshipHolders(filterShow) {
             const select = document.getElementById('champHolder');
+            const select2 = document.getElementById('champHolder2');
             const currentValue = select.value;
+            const currentValue2 = select2.value;
             select.innerHTML = '<option value="Vacant">Vacant</option>';
+            select2.innerHTML = '<option value="">Select Partner</option>';
             const pool = filterShow ? wrestlers.filter(w => {
                 const wrestlerShows = w.shows || [w.show];
                 return wrestlerShows.includes(filterShow);
@@ -4176,14 +4455,84 @@
                 option.value = w.name;
                 option.textContent = w.name;
                 select.appendChild(option);
+                const option2 = document.createElement('option');
+                option2.value = w.name;
+                option2.textContent = w.name;
+                select2.appendChild(option2);
             });
             if (currentValue) select.value = currentValue;
+            if (currentValue2) select2.value = currentValue2;
         }
 
         function onChampShowChange() {
             const show = document.getElementById('champShow').value;
             populateChampionshipHolders(show);
             document.getElementById('champHolder').value = 'Vacant';
+            
+            // Refresh team list if tag championship type is selected
+            const type = document.getElementById('champType').value;
+            if (type === 'Tag') {
+                populateChampionshipTeams();
+            }
+        }
+
+        function onChampTypeChange() {
+            const type = document.getElementById('champType').value;
+            const holder2Group = document.getElementById('champHolder2Group');
+            const holder2Select = document.getElementById('champHolder2');
+            const teamSelectGroup = document.getElementById('champTeamSelectGroup');
+            const teamSelect = document.getElementById('champTeamSelect');
+            
+            if (type === 'Tag') {
+                holder2Group.style.display = 'block';
+                holder2Select.required = true;
+                teamSelectGroup.style.display = 'block';
+                populateChampionshipTeams();
+            } else {
+                holder2Group.style.display = 'none';
+                holder2Select.required = false;
+                holder2Select.value = '';
+                teamSelectGroup.style.display = 'none';
+                teamSelect.value = '';
+            }
+        }
+
+        function populateChampionshipTeams() {
+            const select = document.getElementById('champTeamSelect');
+            const show = document.getElementById('champShow').value;
+            
+            select.innerHTML = '<option value="">Choose a team to auto-fill holders</option>';
+            
+            // Filter teams by show if show is selected
+            const filteredTeams = show 
+                ? TEAMS.filter(t => !t.show || t.show === show)
+                : TEAMS;
+            
+            filteredTeams.forEach(team => {
+                if (team.members && team.members.length >= 2) {
+                    const option = document.createElement('option');
+                    option.value = JSON.stringify(team.members);
+                    option.textContent = `${team.name} (${team.members.slice(0, 2).join(' & ')})`;
+                    select.appendChild(option);
+                }
+            });
+        }
+
+        function onChampTeamSelected() {
+            const teamSelect = document.getElementById('champTeamSelect');
+            const selectedValue = teamSelect.value;
+            
+            if (!selectedValue) return;
+            
+            try {
+                const members = JSON.parse(selectedValue);
+                if (members.length >= 2) {
+                    document.getElementById('champHolder').value = members[0];
+                    document.getElementById('champHolder2').value = members[1];
+                }
+            } catch (e) {
+                console.error('Error parsing team members:', e);
+            }
         }
 
         async function editChampionship(id) {
@@ -4191,12 +4540,34 @@
             if (!championship) return;
             document.getElementById('champId').value = id;
             document.getElementById('champName').value = championship.name;
+            document.getElementById('champType').value = championship.type || 'Single';
             document.getElementById('champShow').value = championship.show;
             document.getElementById('champDebutDate').value = championship.debutDate.split('T')[0];
             document.getElementById('champNotes').value = championship.notes || '';
             document.getElementById('champModalTitle').textContent = 'Edit Championship';
             populateChampionshipHolders(championship.show);
             document.getElementById('champHolder').value = championship.holder;
+            document.getElementById('champHolder2').value = championship.holder2 || '';
+            
+            // Show/hide holder2 field and team selector based on type
+            const holder2Group = document.getElementById('champHolder2Group');
+            const holder2Select = document.getElementById('champHolder2');
+            const teamSelectGroup = document.getElementById('champTeamSelectGroup');
+            const teamSelect = document.getElementById('champTeamSelect');
+            
+            if (championship.type === 'Tag') {
+                holder2Group.style.display = 'block';
+                holder2Select.required = true;
+                teamSelectGroup.style.display = 'block';
+                populateChampionshipTeams();
+                teamSelect.value = '';
+            } else {
+                holder2Group.style.display = 'none';
+                holder2Select.required = false;
+                teamSelectGroup.style.display = 'none';
+                teamSelect.value = '';
+            }
+            
             openModal('championshipModal');
         }
 
@@ -4204,8 +4575,10 @@
             e.preventDefault();
             const id = document.getElementById('champId').value;
             const name = document.getElementById('champName').value;
+            const type = document.getElementById('champType').value;
             const show = document.getElementById('champShow').value;
             const holder = document.getElementById('champHolder').value || 'Vacant';
+            const holder2 = document.getElementById('champHolder2').value || null;
             const debutDate = document.getElementById('champDebutDate').value;
             const notes = document.getElementById('champNotes').value;
 
@@ -4216,7 +4589,7 @@
                 const res = await fetch(url, {
                     method: method,
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, show, holder, debutDate, notes })
+                    body: JSON.stringify({ name, show, holder, holder2, debutDate, notes, type })
                 });
                 
                 if (res.ok) {
@@ -4777,6 +5150,108 @@
                 if (res.ok) { document.getElementById('rivalryFromMatchModal').remove(); await loadRivalriesForStorylines(); alert('Rivalry created!'); }
                 else { const err = await res.json(); alert(err.error || 'Error creating rivalry'); }
             } catch (err) { console.error(err); alert('Error creating rivalry'); }
+        }
+
+        // ==================== ACCOUNTS ====================
+        async function loadAccounts() {
+            try {
+                const res = await fetch(`${API}/accounts`);
+                allAccounts = await res.json();
+                displayAccounts();
+                updateActiveAccountBadge();
+            } catch (err) {
+                console.error('Error loading accounts:', err);
+            }
+        }
+
+        function updateActiveAccountBadge() {
+            const activeAccount = allAccounts.find(a => a.isActive);
+            const badge = document.getElementById('activeAccountBadge');
+            if (activeAccount) {
+                badge.innerHTML = `<div style="font-size:0.75em;color:var(--text-muted);margin-bottom:2px;">Active Account</div><span class="badge badge-success" style="font-size:0.9em;padding:6px 14px;">💾 ${activeAccount.name}</span>`;
+            } else {
+                badge.innerHTML = '<span class="badge badge-warning" style="font-size:0.85em;padding:6px 12px;">No Active Account</span>';
+            }
+        }
+
+        function displayAccounts() {
+            const html = allAccounts.length > 0
+                ? allAccounts.map(a => `<tr>
+                    <td><strong>${a.name}</strong></td>
+                    <td>${a.isActive ? '<span class="badge badge-success">✓ Active</span>' : '<span class="badge" style="background:#555;">Inactive</span>'}</td>
+                    <td>${new Date(a.createdAt).toLocaleDateString()}</td>
+                    <td><div class="action-buttons">
+                        ${!a.isActive ? `<button class="btn btn-primary" onclick="activateAccount(${a.id})">Switch to This Account</button>` : '<span class="badge badge-info">Currently Active</span>'}
+                        ${!a.isActive ? `<button class="btn btn-danger" onclick="deleteAccount(${a.id})">Delete</button>` : ''}
+                    </div></td>
+                </tr>`).join('')
+                : '<tr><td colspan="4" class="no-data">No accounts found</td></tr>';
+            document.getElementById('accountsTable').innerHTML = html;
+        }
+
+        function openAddAccountModal() {
+            document.getElementById('accountName').value = '';
+            openModal('accountModal');
+        }
+
+        async function saveAccount(e) {
+            e.preventDefault();
+            const name = document.getElementById('accountName').value.trim();
+            if (!name) return alert('Please enter an account name');
+            try {
+                const res = await fetch(`${API}/accounts`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                if (res.ok) {
+                    closeModal('accountModal');
+                    await loadAccounts();
+                    alert(`Account "${name}" created successfully!`);
+                } else {
+                    const err = await res.json();
+                    alert(err.error || 'Error creating account');
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                alert('Error creating account');
+            }
+        }
+
+        async function activateAccount(id) {
+            const account = allAccounts.find(a => a.id === id);
+            if (!confirm(`Switch to account "${account.name}"? The page will reload with this account's data.`)) return;
+            try {
+                const res = await fetch(`${API}/accounts/${id}/activate`, { method: 'POST' });
+                if (res.ok) {
+                    alert('Account activated! The page will now reload.');
+                    window.location.reload();
+                } else {
+                    const err = await res.json();
+                    alert(err.error || 'Error activating account');
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                alert('Error activating account');
+            }
+        }
+
+        async function deleteAccount(id) {
+            const account = allAccounts.find(a => a.id === id);
+            if (!confirm(`Delete account "${account.name}"? This will permanently delete all data for this account!`)) return;
+            try {
+                const res = await fetch(`${API}/accounts/${id}`, { method: 'DELETE' });
+                if (res.ok) {
+                    await loadAccounts();
+                    alert('Account deleted successfully');
+                } else {
+                    const err = await res.json();
+                    alert(err.error || 'Error deleting account');
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                alert('Error deleting account');
+            }
         }
     </script>
 </body>
