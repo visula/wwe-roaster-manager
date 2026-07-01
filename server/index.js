@@ -299,12 +299,33 @@ app.delete('/api/events/:id', (req, res) => {
 // ==================== TEAMS ====================
 app.get('/api/teams', (req, res) => {
   const rows = db.getAllTeams();
-  res.json(rows.map(t => ({ 
-    ...t, 
-    members: t.members ? t.members.split(',').map(m => m.trim()).filter(Boolean) : [],
-    tagTeamPairs: t.tagTeamPairs ? JSON.parse(t.tagTeamPairs) : [],
-    shows: t.shows ? JSON.parse(t.shows) : (t.show ? [t.show] : [])
-  })));
+  const enriched = rows.map(t => {
+    const memberNames = t.members ? t.members.split(',').map(m => m.trim()).filter(Boolean) : [];
+    
+    // Auto-calculate shows from members
+    const calculatedShows = new Set();
+    memberNames.forEach(memberName => {
+      const wrestler = db.db.prepare('SELECT id FROM wrestlers WHERE name = ?').get(memberName);
+      if (wrestler) {
+        const showsData = db.db.prepare('SELECT showName FROM wrestler_shows WHERE wrestlerId = ?').all(wrestler.id);
+        if (showsData.length > 0) {
+          showsData.forEach(s => calculatedShows.add(s.showName));
+        } else {
+          // Fallback to legacy show field
+          const wrestlerData = db.db.prepare('SELECT show FROM wrestlers WHERE id = ?').get(wrestler.id);
+          if (wrestlerData && wrestlerData.show) calculatedShows.add(wrestlerData.show);
+        }
+      }
+    });
+    
+    return { 
+      ...t, 
+      members: memberNames,
+      tagTeamPairs: t.tagTeamPairs ? JSON.parse(t.tagTeamPairs) : [],
+      shows: Array.from(calculatedShows)
+    };
+  });
+  res.json(enriched);
 });
 
 app.post('/api/teams', (req, res) => {

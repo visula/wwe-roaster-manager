@@ -973,38 +973,38 @@
             </div>
             <form onsubmit="saveTeam(event)">
                 <input type="hidden" id="teamEditId">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Team / Faction Name *</label>
-                        <input type="text" id="teamName" placeholder="e.g. Judgment Day" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Show / Brand</label>
-                        <div id="teamShowsContainer" style="display: flex; flex-direction: column; gap: 8px;">
-                            <div style="display: flex; gap: 8px; align-items: center;">
-                                <select id="teamShowSelect" style="flex: 1;">
-                                    <option value="">Select Show...</option>
-                                </select>
-                                <button type="button" onclick="addTeamShow()" class="btn btn-secondary" style="padding: 6px 12px;">+ Add</button>
-                            </div>
-                            <div id="selectedTeamShows" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
-                        </div>
+                
+                <!-- Team Name -->
+                <div class="form-group">
+                    <label>Team / Faction Name *</label>
+                    <input type="text" id="teamName" placeholder="e.g. Judgment Day" required>
+                </div>
+
+                <!-- Auto-calculated Shows -->
+                <div class="form-group">
+                    <label>Associated Shows <small style="color: #888;">(Auto-calculated from members)</small></label>
+                    <div id="autoCalculatedShows" style="padding: 10px; background: #0d0d0d; border: 1px solid #333; border-radius: 6px; min-height: 40px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px;">
+                        <span style="color: #888; font-size: 0.9em; font-style: italic;">Select team members to see their shows</span>
                     </div>
                 </div>
+
+                <!-- Team Members -->
                 <div class="form-group">
-                    <label>Members</label>
-                    <small style="color:var(--text-muted);font-size:0.8em;display:block;margin-bottom:8px;">Wrestlers will be filtered by the selected shows above</small>
-                    <div id="teamMembersContainer" style="display:flex;flex-direction:column;gap:8px;margin-top:8px;"></div>
-                    <button type="button" class="btn btn-secondary" style="margin-top:8px;" onclick="addTeamMemberSlot()">+ Add Member</button>
+                    <label>Team Members *</label>
+                    <div id="teamMembersContainer" style="display:flex;flex-direction:column;gap:10px;margin-top:10px;padding:12px;background:#0d0d0d;border:1px solid #333;border-radius:6px;"></div>
+                    <button type="button" class="btn btn-secondary" style="margin-top:10px;" onclick="addTeamMemberSlot()">+ Add Member</button>
                 </div>
+
+                <!-- Tag Team Pairs -->
                 <div class="form-group">
-                    <label>Tag Team Pairs <small>(specify which 2 members form tag teams)</small></label>
-                    <div id="tagTeamPairsContainer" style="display:flex;flex-direction:column;gap:8px;margin-top:8px;"></div>
-                    <button type="button" class="btn btn-secondary" style="margin-top:8px;" onclick="addTagPairSlot()">+ Add Tag Pair</button>
+                    <label>Tag Team Pairs <small style="color: #888;">(Optional - Define 2-person teams within this faction)</small></label>
+                    <div id="tagTeamPairsContainer" style="display:flex;flex-direction:column;gap:10px;margin-top:10px;padding:12px;background:#0d0d0d;border:1px solid #333;border-radius:6px;"></div>
+                    <button type="button" class="btn btn-secondary" style="margin-top:10px;" onclick="addTagPairSlot()">+ Add Tag Pair</button>
                 </div>
+
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('teamModal')">Cancel</button>
-                    <button type="submit" class="btn btn-success">Save</button>
+                    <button type="submit" class="btn btn-success">Save Team</button>
                 </div>
             </form>
         </div>
@@ -2588,9 +2588,6 @@
             document.getElementById('teamEditId').value = '';
             document.getElementById('teamModalTitle').textContent = 'Add Team / Faction';
             document.getElementById('teamName').value = '';
-            populateTeamShowSelect();
-            selectedTeamShows = [];
-            renderSelectedTeamShows();
             buildTeamMemberSlots([]);
             buildTagPairSlots([]);
             openModal('teamModal');
@@ -2648,51 +2645,48 @@
             const container = document.getElementById('teamMembersContainer');
             container.innerHTML = '';
             if (members.length === 0) members = [''];
-            const pool = selectedTeamShows.length > 0 ? wrestlers.filter(w => {
-                const wrestlerShows = w.shows && w.shows.length > 0 ? w.shows : (w.show ? [w.show] : []);
-                return wrestlerShows.some(s => selectedTeamShows.includes(s));
-            }) : wrestlers;
+            const pool = wrestlers;
             
             members.forEach((m, i) => {
                 const div = document.createElement('div');
-                div.className = 'form-row';
-                div.innerHTML = `<select class="teamMemberSelect" style="flex:1;">
-                    <option value="">Select Wrestler</option>
-                    ${pool.map(w => {
-                        const wrestlerShows = w.shows && w.shows.length > 0 ? w.shows : (w.show ? [w.show] : []);
-                        return `<option value="${w.name}">${w.name} (${wrestlerShows.join(', ')})</option>`;
-                    }).join('')}
-                </select>
-                <button type="button" class="btn btn-danger" style="padding:6px 12px;margin-left:8px;" onclick="removeTeamMemberSlot(this)">✕</button>`;
+                div.style.cssText = 'display:flex;gap:10px;align-items:center;padding:8px;background:#1a1a1a;border-radius:4px;';
+                div.innerHTML = `
+                    <span style="min-width:30px;color:#888;font-weight:bold;">#${i+1}</span>
+                    <select class="teamMemberSelect" style="flex:1;" onchange="updateAutoCalculatedShows()">
+                        <option value="">Select Wrestler</option>
+                        ${pool.map(w => {
+                            const wrestlerShows = w.shows && w.shows.length > 0 ? w.shows : (w.show ? [w.show] : []);
+                            return `<option value="${w.name}">${w.name} (${wrestlerShows.join(', ')})</option>`;
+                        }).join('')}
+                    </select>
+                    <button type="button" class="btn btn-danger" style="padding:8px 14px;" onclick="removeTeamMemberSlot(this)" title="Remove Member">✕</button>`;
                 container.appendChild(div);
                 if (m) div.querySelector('.teamMemberSelect').value = m;
             });
+            if (members.length === 0 || (members.length === 1 && !members[0])) {
+                container.innerHTML = '<div style="color:#888;text-align:center;padding:20px;font-style:italic;">No members added yet. Click "+ Add Member" below.</div>';
+            }
+            updateAutoCalculatedShows();
         }
 
-        function onTeamShowFilterChange() {
-            const selects = document.querySelectorAll('.teamMemberSelect');
-            selects.forEach(sel => {
-                const cur = sel.value;
-                sel.innerHTML = '<option value="">Select Wrestler</option>';
-                const pool = selectedTeamShows.length > 0 ? wrestlers.filter(w => {
-                    const wrestlerShows = w.shows && w.shows.length > 0 ? w.shows : (w.show ? [w.show] : []);
-                    return wrestlerShows.some(s => selectedTeamShows.includes(s));
-                }) : wrestlers;
-                pool.forEach(w => { 
-                    const o = document.createElement('option'); 
-                    o.value = w.name; 
-                    const wrestlerShows = w.shows && w.shows.length > 0 ? w.shows : (w.show ? [w.show] : []);
-                    o.textContent = `${w.name} (${wrestlerShows.join(', ')})`; 
-                    sel.appendChild(o); 
-                });
-                if (cur && pool.find(w => w.name === cur)) sel.value = cur;
-            });
-        }
-
-        function onTeamShowChange() {
+        function updateAutoCalculatedShows() {
             const members = Array.from(document.querySelectorAll('.teamMemberSelect')).map(s => s.value).filter(Boolean);
-            buildTeamMemberSlots(members.length > 0 ? members : ['']);
-            updateTagPairDropdowns();
+            const calculatedShows = new Set();
+            members.forEach(memberName => {
+                const wrestler = wrestlers.find(w => w.name === memberName);
+                if (wrestler) {
+                    const wrestlerShows = wrestler.shows && wrestler.shows.length > 0 ? wrestler.shows : (wrestler.show ? [wrestler.show] : []);
+                    wrestlerShows.forEach(show => calculatedShows.add(show));
+                }
+            });
+            const container = document.getElementById('autoCalculatedShows');
+            if (calculatedShows.size === 0) {
+                container.innerHTML = '<span style="color: #888; font-size: 0.9em;">Select team members to see their shows</span>';
+            } else {
+                container.innerHTML = Array.from(calculatedShows).map(show => 
+                    `<span class="badge badge-info" style="margin: 2px;">${show}</span>`
+                ).join('');
+            }
         }
 
         function addTeamMemberSlot() {
@@ -2706,6 +2700,7 @@
             members.splice(idx, 1);
             buildTeamMemberSlots(members.length > 0 ? members : ['']);
             updateTagPairDropdowns();
+            updateAutoCalculatedShows();
         }
 
         function buildTagPairSlots(pairs) {
@@ -2714,15 +2709,17 @@
             if (pairs.length === 0) pairs = [{ member1: '', member2: '' }];
             pairs.forEach((pair, i) => {
                 const div = document.createElement('div');
-                div.className = 'form-row';
+                div.style.cssText = 'display:flex;gap:10px;align-items:center;padding:8px;background:#1a1a1a;border-radius:4px;';
                 div.innerHTML = `
+                    <span style="min-width:50px;color:#888;font-weight:bold;">Pair ${i+1}</span>
                     <select class="tagPairMember1" style="flex:1;" data-idx="${i}">
-                        <option value="">Select Member 1</option>
+                        <option value="">Member 1</option>
                     </select>
-                    <select class="tagPairMember2" style="flex:1;margin-left:8px;" data-idx="${i}">
-                        <option value="">Select Member 2</option>
+                    <span style="color:#666;">&</span>
+                    <select class="tagPairMember2" style="flex:1;" data-idx="${i}">
+                        <option value="">Member 2</option>
                     </select>
-                    <button type="button" class="btn btn-danger" style="padding:6px 12px;margin-left:8px;" onclick="removeTagPairSlot(this)">✕</button>`;
+                    <button type="button" class="btn btn-danger" style="padding:8px 14px;" onclick="removeTagPairSlot(this)" title="Remove Pair">✕</button>`;
                 container.appendChild(div);
             });
             updateTagPairDropdowns();
@@ -2783,9 +2780,6 @@
             document.getElementById('teamEditId').value = id;
             document.getElementById('teamModalTitle').textContent = 'Edit Team / Faction';
             document.getElementById('teamName').value = t.name;
-            populateTeamShowSelect();
-            selectedTeamShows = t.shows && Array.isArray(t.shows) && t.shows.length > 0 ? [...t.shows] : (t.show ? [t.show] : []);
-            renderSelectedTeamShows();
             buildTeamMemberSlots(t.members);
             buildTagPairSlots(t.tagTeamPairs && t.tagTeamPairs.length > 0 ? t.tagTeamPairs : [{ member1: '', member2: '' }]);
             openModal('teamModal');
@@ -2795,9 +2789,20 @@
             e.preventDefault();
             const id = document.getElementById('teamEditId').value;
             const name = document.getElementById('teamName').value.trim();
-            const shows = selectedTeamShows.length > 0 ? selectedTeamShows : [];
             const members = Array.from(document.querySelectorAll('.teamMemberSelect')).map(s => s.value).filter(Boolean);
             if (members.length === 0) return alert('Add at least one team member');
+            
+            // Auto-calculate shows from team members
+            const calculatedShows = new Set();
+            members.forEach(memberName => {
+                const wrestler = wrestlers.find(w => w.name === memberName);
+                if (wrestler) {
+                    const wrestlerShows = wrestler.shows && wrestler.shows.length > 0 ? wrestler.shows : (wrestler.show ? [wrestler.show] : []);
+                    wrestlerShows.forEach(show => calculatedShows.add(show));
+                }
+            });
+            const shows = Array.from(calculatedShows);
+            
             const tagTeamPairs = getTagPairsFromForm();
             const method = id ? 'PUT' : 'POST';
             const url = id ? `${API}/teams/${id}` : `${API}/teams`;
@@ -2928,6 +2933,76 @@
             displayRoster(sortData(filtered, col, dir));
         }
 
+        async function moveMatchUp(matchId, dateKey, showName) {
+            const matches = allMatches.filter(m => {
+                const notes = m.notes || '';
+                const mDate = m.date ? m.date.split('T')[0] : 'No Date';
+                return m.show === showName && mDate === dateKey && !notes.includes('[MEEVENT]') && !notes.includes('[MEMATCH:');
+            }).sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            const currentIdx = matches.findIndex(m => m.id === matchId);
+            if (currentIdx <= 0) return;
+            
+            const currentMatch = matches[currentIdx];
+            const aboveMatch = matches[currentIdx - 1];
+            
+            const currentTime = new Date(currentMatch.date);
+            const aboveTime = new Date(aboveMatch.date);
+            currentTime.setMinutes(currentTime.getMinutes() - 2);
+            aboveTime.setMinutes(aboveTime.getMinutes() + 2);
+            
+            try {
+                await fetch(`${API}/matches/${currentMatch.id}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({...currentMatch, date: currentTime.toISOString()})
+                });
+                await fetch(`${API}/matches/${aboveMatch.id}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({...aboveMatch, date: aboveTime.toISOString()})
+                });
+                await loadMatches();
+            } catch (err) {
+                alert('Error reordering matches');
+            }
+        }
+
+        async function moveMatchDown(matchId, dateKey, showName) {
+            const matches = allMatches.filter(m => {
+                const notes = m.notes || '';
+                const mDate = m.date ? m.date.split('T')[0] : 'No Date';
+                return m.show === showName && mDate === dateKey && !notes.includes('[MEEVENT]') && !notes.includes('[MEMATCH:');
+            }).sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            const currentIdx = matches.findIndex(m => m.id === matchId);
+            if (currentIdx < 0 || currentIdx >= matches.length - 1) return;
+            
+            const currentMatch = matches[currentIdx];
+            const belowMatch = matches[currentIdx + 1];
+            
+            const currentTime = new Date(currentMatch.date);
+            const belowTime = new Date(belowMatch.date);
+            currentTime.setMinutes(currentTime.getMinutes() + 2);
+            belowTime.setMinutes(belowTime.getMinutes() - 2);
+            
+            try {
+                await fetch(`${API}/matches/${currentMatch.id}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({...currentMatch, date: currentTime.toISOString()})
+                });
+                await fetch(`${API}/matches/${belowMatch.id}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({...belowMatch, date: belowTime.toISOString()})
+                });
+                await loadMatches();
+            } catch (err) {
+                alert('Error reordering matches');
+            }
+        }
+
         async function loadMatches() {
             try {
                 const res = await fetch(`${API}/matches`);
@@ -2988,7 +3063,7 @@
                             <table>
                                 <thead>
                                     <tr>
-                                        <th style="width:40px;">#</th>
+                                        <th style="width:70px; text-align:center; background:#8b0000;">#</th>
                                         <th>Category</th>
                                         <th>Type</th>
                                         <th>Participants</th>
@@ -3007,8 +3082,16 @@
                         const category = m.category ? `<span class="badge badge-info">${m.category}</span>` : '-';
                         const participants = [m.participant1, m.participant2, m.participant3, m.participant4, m.participant5, m.participant6, m.participant7, m.participant8].filter(Boolean).join(' vs ');
                         
-                        html += `<tr>
-                            <td style="text-align:center; font-weight:bold; color:var(--text-muted);">${idx + 1}</td>
+                        html += `<tr data-match-id="${m.id}" data-match-date="${dateKey}" data-match-show="${showName}">
+                            <td style="text-align:center; font-weight:bold; color:#fff; background:#8b0000; border-radius:3px;">
+                                <div style="display:flex; align-items:center; justify-content:center; gap:5px;">
+                                    <span>${idx + 1}</span>
+                                    <div style="display:flex; flex-direction:column; gap:2px;">
+                                        ${idx > 0 ? `<button onclick="moveMatchUp(${m.id}, '${dateKey}', '${showName}')" class="btn" style="padding:2px 6px; font-size:10px; background:#555;" title="Move Up">▲</button>` : ''}
+                                        ${idx < matches.length - 1 ? `<button onclick="moveMatchDown(${m.id}, '${dateKey}', '${showName}')" class="btn" style="padding:2px 6px; font-size:10px; background:#555;" title="Move Down">▼</button>` : ''}
+                                    </div>
+                                </div>
+                            </td>
                             <td>${category}</td>
                             <td>${m.type}</td>
                             <td>${participants}</td>
