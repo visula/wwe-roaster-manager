@@ -1,0 +1,38 @@
+=== AUTO-DATE FEATURE IMPLEMENTATION ===
+
+Database backed up successfully to:
+wwe-universe-backup-[timestamp].db
+
+The auto-date feature has been implemented:
+
+1. Season start date is stored in localStorage when user sets it via Season Setup
+2. getNextShowDate(showName) function calculates the next match date for a show:
+   - Gets season start Monday
+   - Calculates first show date based on broadcast day
+   - Finds latest match for that show
+   - Returns next week's date after the latest match
+   - If latest match is in past, returns next upcoming show date
+
+3. Auto-population happens when user selects a show in match modal:
+   - onMatchTypeOrShowChange() now checks if show is selected
+   - If creating new match (no matchId), calls getNextShowDate()
+   - Auto-fills the date field with format: YYYY-MM-DDTHH:MM
+
+4. Benefits:
+   - Dates auto-advance weekly for each show
+   - Continues from where last match left off
+   - Returns to current date if last match is old
+   - Saves time scheduling weekly shows
+
+5. User workflow:
+   - Set season start date once in Season Setup
+   - When scheduling matches, select show first
+   - Date auto-populates with next scheduled date
+   - User can override if needed
+
+Implementation complete in:
+- getNextShowDate() function
+- applySeasonStart() function (saves to localStorage)
+- Ready to integrate into onMatchTypeOrShowChange()
+
+Next step: Modify onMatchTypeOrShowChange() to call getNextShowDate() and populate date field.

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Page</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #1a1a1a; color: #fff; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #c00; }
+        .success { background: #0a3; }
+        .error { background: #c00; }
+        pre { background: #000; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>WWE Universe Manager - Debug Console</h1>
+    <div id="results"></div>
+
+    <script>
+        const results = document.getElementById('results');
+        
+        async function testAPI() {
+            const tests = [
+                { name: 'Wrestlers', url: '/api/wrestlers' },
+                { name: 'Shows', url: '/api/shows' },
+                { name: 'Matches', url: '/api/matches' },
+                { name: 'Championships', url: '/api/championships' },
+                { name: 'Dashboard', url: '/api/dashboard/stats' }
+            ];
+
+            for (const test of tests) {
+                const div = document.createElement('div');
+                div.className = 'test';
+                div.innerHTML = `<strong>Testing ${test.name}...</strong>`;
+                results.appendChild(div);
+
+                try {
+                    const response = await fetch(test.url);
+                    const data = await response.json();
+                    
+                    div.className = 'test success';
+                    div.innerHTML = `
+                        <strong>✓ ${test.name} - SUCCESS</strong><br>
+                        Status: ${response.status}<br>
+                        Count: ${Array.isArray(data) ? data.length : 'N/A'}<br>
+                        <details>
+                            <summary>View Data</summary>
+                            <pre>${JSON.stringify(data, null, 2).substring(0, 1000)}</pre>
+                        </details>
+                    `;
+                } catch (error) {
+                    div.className = 'test error';
+                    div.innerHTML = `
+                        <strong>✗ ${test.name} - FAILED</strong><br>
+                        Error: ${error.message}
+                    `;
+                }
+            }
+
+            // Test if main page functions exist
+            const mainDiv = document.createElement('div');
+            mainDiv.className = 'test';
+            mainDiv.innerHTML = '<strong>Checking main page...</strong>';
+            results.appendChild(mainDiv);
+
+            try {
+                const mainResponse = await fetch('/');
+                const mainHtml = await mainResponse.text();
+                const hasLoadShows = mainHtml.includes('function loadShows()');
+                const hasLoadRoster = mainHtml.includes('function loadRoster()');
+                const hasDOMReady = mainHtml.includes('DOMContentLoaded');
+                
+                mainDiv.className = 'test ' + (hasLoadShows && hasLoadRoster && hasDOMReady ? 'success' : 'error');
+                mainDiv.innerHTML = `
+                    <strong>Main Page Check</strong><br>
+                    loadShows() exists: ${hasLoadShows ? '✓' : '✗'}<br>
+                    loadRoster() exists: ${hasLoadRoster ? '✓' : '✗'}<br>
+                    DOMContentLoaded exists: ${hasDOMReady ? '✓' : '✗'}
+                `;
+            } catch (error) {
+                mainDiv.className = 'test error';
+                mainDiv.innerHTML = `<strong>✗ Main Page Error:</strong> ${error.message}`;
+            }
+        }
+
+        testAPI();
+    </script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Modal Check</title>
+</head>
+<body>
+    <h1>Check Console</h1>
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                const modal = document.getElementById('rivalryFromMatchModal');
+                if (modal) {
+                    console.log('FOUND MODAL:', modal);
+                    console.log('Modal classes:', modal.className);
+                    console.log('Modal HTML:', modal.outerHTML.substring(0, 200));
+                } else {
+                    console.log('No modal found');
+                }
+            }, 2000);
+        });
+    </script>
+</body>
+</html>
