@@ -8,7 +8,6 @@ import fs from 'fs';
 import multer from 'multer';
 import { parse } from 'csv-parse/sync';
 import Database from './db.js';
-import BetterSqlite3 from 'better-sqlite3';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -529,6 +528,18 @@ app.delete('/api/accounts/:id', (req, res) => {
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
+});
+
+// ==================== SETTINGS ====================
+app.get('/api/settings/:key', (req, res) => {
+  const value = db.getSetting(req.params.key);
+  res.json({ key: req.params.key, value });
+});
+
+app.post('/api/settings/:key', (req, res) => {
+  const { value } = req.body;
+  db.setSetting(req.params.key, value);
+  res.json({ success: true });
 });
 
 // ==================== DASHBOARD ====================

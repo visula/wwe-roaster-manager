@@ -395,6 +395,16 @@ class DatabaseManager {
       }
     }
 
+    // Migrate: add settings table
+    const settingsCols = this.db.prepare(`PRAGMA table_info(settings)`).all();
+    if (!settingsCols.length) {
+      this.db.exec(`CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      )`);
+      console.log('✅ Created settings table');
+    }
+
     console.log('✅ Database initialized');
   }
 
@@ -820,6 +830,15 @@ class DatabaseManager {
 
   deleteRivalry(id) {
     this.db.prepare('DELETE FROM rivalries WHERE id = ?').run(id);
+  }
+
+  getSetting(key) {
+    const row = this.db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+    return row ? row.value : null;
+  }
+
+  setSetting(key, value) {
+    this.db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value);
   }
 
   // ==================== ACCOUNTS ====================

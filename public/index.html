@@ -456,9 +456,13 @@
             </div>
 
             <div class="filter-section">
-                <select id="matchShowFilter" onchange="filterMatches()">
-                    <option value="">All Shows</option>
-                </select>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <label style="color:#888; font-size:0.9em; white-space:nowrap; margin:0;">Active Show:</label>
+                    <select id="activeShowSelector" onchange="onActiveShowChange()">
+                        <option value="">All Shows</option>
+                    </select>
+                </div>
+                <select id="matchShowFilter" onchange="filterMatches()" style="display:none;"></select>
                 <select id="matchStatusFilter" onchange="filterMatches()">
                     <option value="">All Statuses</option>
                     <option value="Pending">Pending</option>
@@ -932,6 +936,8 @@
                         <option value="Steel Cage Match">Steel Cage Match</option>
                         <option value="3 Stages of Hell">3 Stages of Hell</option>
                         <option value="Ambulance Match">Ambulance Match</option>
+                        <option value="Gauntlet Match">Gauntlet Match</option>
+                        <option value="Gauntlet Eliminator">Gauntlet Eliminator</option>
                     </select>
                 </div>
                 <div id="meMatchParticipantsGrid"></div>
@@ -1257,6 +1263,8 @@
                         <option value="Inferno Match">Inferno Match</option>
                         <option value="3 Stages of Hell">3 Stages of Hell</option>
                         <option value="Battle Royal">Battle Royal (Multi 8+)</option>
+                        <option value="Gauntlet Match">Gauntlet Match</option>
+                        <option value="Gauntlet Eliminator">Gauntlet Eliminator</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -1493,6 +1501,9 @@
             'Inferno Match':        ['Special Matches'],
             '3 Stages of Hell':     ['Special Matches'],
             'Battle Royal':         ['Battle Royal'],
+            // Gauntlet matches
+            'Gauntlet Match':       ['Special Matches'],
+            'Gauntlet Eliminator':  ['Special Matches'],
             // Main event exclusives
             'Elimination Chamber':  ['Special Matches'],
             'Royal Rumble':         ['Battle Royal'],
@@ -1504,7 +1515,7 @@
 
         // Configurable match categories and types
         let matchCategories = ['Normal','Tag Team','Tornado Tag','Handicap','Extreme Rules','Falls Count Anywhere','Hell in a Cell','Steel Cage','Tables Match','Ladder Match','TLC','Submission Match','Last Man Standing','Iron Man Match','No Holds Barred','Backstage Brawl','Special Matches','Battle Royal','Promo'];
-        let matchTypes = ['One vs One','Triple Threat','Fatal 4-Way','5-Way','6-Way','8-Way','Two on Two','Two on Two Mixed Tag','Two on Two Tornado Tag','Three on Three','Three on Three Tornado Tag','Four on Four','Triple Threat Tornado Tag','4-Way Tornado Tag','One on Two','One on Two Tornado Tag','One on Three','Two on Three','Handicap One on Two','Hell in a Cell','Steel Cage Match','Tables Match','Ladder Match','TLC Match','Submission Match','Last Man Standing','Iron Man Match','Ambulance Match','Casket Match','Dumpster Match','I Quit Match','Inferno Match','3 Stages of Hell','Battle Royal'];
+        let matchTypes = ['One vs One','Triple Threat','Fatal 4-Way','5-Way','6-Way','8-Way','Two on Two','Two on Two Mixed Tag','Two on Two Tornado Tag','Three on Three','Three on Three Tornado Tag','Four on Four','Triple Threat Tornado Tag','4-Way Tornado Tag','One on Two','One on Two Tornado Tag','One on Three','Two on Three','Handicap One on Two','Hell in a Cell','Steel Cage Match','Tables Match','Ladder Match','TLC Match','Submission Match','Last Man Standing','Iron Man Match','Ambulance Match','Casket Match','Dumpster Match','I Quit Match','Inferno Match','3 Stages of Hell','Battle Royal','Gauntlet Match','Gauntlet Eliminator'];
 
         // Load from localStorage
         function loadMatchConfig() {
@@ -2325,6 +2336,16 @@
                 shows = await res.json();
                 populateShowSelects();
                 displayShows();
+                // Restore saved active show
+                const settingRes = await fetch(`${API}/settings/activeShow`);
+                const setting = await settingRes.json();
+                if (setting.value) {
+                    const sel = document.getElementById('activeShowSelector');
+                    if (sel) {
+                        sel.value = setting.value;
+                        onActiveShowChange();
+                    }
+                }
             } catch (err) {
                 console.error('Error loading shows:', err);
             }
@@ -2374,6 +2395,33 @@
                 });
                 select.value = currentValue;
             });
+
+            // Populate active show selector (same pool as matchShow)
+            const activeShowSel = document.getElementById('activeShowSelector');
+            if (activeShowSel) {
+                const prev = activeShowSel.value;
+                activeShowSel.innerHTML = '<option value="">All Shows</option>';
+                scheduledShows.forEach(show => {
+                    const option = document.createElement('option');
+                    option.value = show.name;
+                    option.textContent = `${show.name}${show.day ? ` (${show.day})` : ''}`;
+                    activeShowSel.appendChild(option);
+                });
+                if (prev) activeShowSel.value = prev;
+            }
+        }
+
+        function onActiveShowChange() {
+            const show = document.getElementById('activeShowSelector').value;
+            fetch(`${API}/settings/activeShow`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ value: show })
+            });
+            // Sync hidden filter and refresh
+            const matchShowFilter = document.getElementById('matchShowFilter');
+            if (matchShowFilter) matchShowFilter.value = show;
+            filterMatches();
         }
 
         function populateShowEligibleOptions(selected = []) {
@@ -2663,9 +2711,7 @@
                 container.appendChild(div);
                 if (m) div.querySelector('.teamMemberSelect').value = m;
             });
-            if (members.length === 0 || (members.length === 1 && !members[0])) {
-                container.innerHTML = '<div style="color:#888;text-align:center;padding:20px;font-style:italic;">No members added yet. Click "+ Add Member" below.</div>';
-            }
+            
             updateAutoCalculatedShows();
         }
 
@@ -3459,7 +3505,8 @@
             'Hell in a Cell': 2, 'Ladder Match': 2, 'TLC Match': 2,
             'Elimination Chamber': 6, 'Royal Rumble': 4, 'War Games': 4,
             'Last Man Standing': 2, 'I Quit Match': 2, 'Steel Cage Match': 2,
-            '3 Stages of Hell': 2, 'Ambulance Match': 2
+            '3 Stages of Hell': 2, 'Ambulance Match': 2,
+            'Gauntlet Match': 6, 'Gauntlet Eliminator': 6
         };
 
         function openCreateMainEventModal(editId) {
@@ -3993,7 +4040,8 @@
             'Last Man Standing': 2, 'Iron Man Match': 2,
             'Ambulance Match': 2, 'Casket Match': 2, 'Dumpster Match': 2,
             'I Quit Match': 2, 'Inferno Match': 2, '3 Stages of Hell': 2,
-            'Battle Royal': 4
+            'Battle Royal': 4,
+            'Gauntlet Match': 6, 'Gauntlet Eliminator': 6
         };
 
         // Team structure for match types (how many teams and members per team)
@@ -4406,7 +4454,8 @@
 
         function openAddMatchModal() {
             document.getElementById('matchId').value = '';
-            document.getElementById('matchShow').value = '';
+            const activeShow = document.getElementById('activeShowSelector').value || '';
+            document.getElementById('matchShow').value = activeShow;
             document.getElementById('matchCategory').value = 'Normal';
             document.getElementById('matchType').value = 'One vs One';
             document.getElementById('matchDate').value = '';
@@ -4417,7 +4466,11 @@
             document.getElementById('matchIsImportant').checked = false;
             document.querySelector('#matchModal .modal-header h2').textContent = 'Schedule Match';
             _teamFillSlot = 0;
-            buildParticipantSlots(2, '');
+            buildParticipantSlots(2, activeShow);
+            if (activeShow) {
+                onMatchTypeOrShowChange();
+                populateMatchChampionships(activeShow, null);
+            }
             openModal('matchModal');
         }
 
