@@ -732,6 +732,10 @@
                     style="padding:8px 12px;background:#1a1a1a;border:1px solid #333;border-radius:6px;color:#fff;font-size:0.9em;min-width:160px;">
                     <option value="">All Shows</option>
                 </select>
+                <label style="display:flex;align-items:center;gap:6px;color:#bbb;font-size:0.9em;white-space:nowrap;">
+                    <input type="checkbox" id="teamCurrentOnlyFilter" onchange="filterTeams()">
+                    Current teams only
+                </label>
                 <button class="btn btn-secondary" onclick="clearTeamFilters()" style="padding:8px 14px;font-size:0.9em;">Clear</button>
                 <span id="teamFilterCount" style="color:#888;font-size:0.85em;white-space:nowrap;"></span>
             </div>
@@ -1336,20 +1340,6 @@
                     <div class="form-group" style="display:flex;align-items:center;gap:10px;padding-top:28px;">
                         <input type="checkbox" id="matchIsImportant" style="width:auto;">
                         <label for="matchIsImportant" style="margin:0;">⭐ Storyline / Important Match</label>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Link to Storyline</label>
-                        <select id="matchStoryline">
-                            <option value="">No Storyline</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Link to Rivalry</label>
-                        <select id="matchRivalry">
-                            <option value="">No Rivalry</option>
-                        </select>
                     </div>
                 </div>
                 <div class="form-actions">
@@ -2360,6 +2350,11 @@
             }, 1000);
             
             setupNavigation();
+            const initialTab = localStorage.getItem('appActiveTab') || 'dashboard';
+            const initialTabButton = document.querySelector(`[data-tab="${initialTab}"]`);
+            if (initialTabButton) {
+                showTab(initialTab, initialTabButton, false);
+            }
             setupSortableHeaders();
             loadMatchConfig();
             populateMatchConfigUI();
@@ -2385,11 +2380,38 @@
             });
         }
 
-        function showTab(tabName, target) {
-            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+        function showTab(tabName, target, persist = true) {
+            const tab = document.getElementById(tabName);
+            if (!tab) return;
+            document.querySelectorAll('.tab-content').forEach(tabEl => tabEl.classList.remove('active'));
             document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-            document.getElementById(tabName).classList.add('active');
+            tab.classList.add('active');
+            if (persist) localStorage.setItem('appActiveTab', tabName);
             (target || document.querySelector(`[data-tab="${tabName}"]`)).classList.add('active');
+        }
+
+        function getMatchSectionLockKey(showName, dateKey) {
+            return `matchSectionLock:${String(showName || 'Unknown').trim()}:${String(dateKey || 'No Date')}`;
+        }
+
+        function isMatchSectionLocked(showName, dateKey) {
+            return localStorage.getItem(getMatchSectionLockKey(showName, dateKey)) === 'true';
+        }
+
+        function updateMatchSectionControls(showName, dateKey, locked) {
+            const buttons = document.querySelectorAll(`[data-section-show="${showName}"][data-section-date="${dateKey}"]`);
+            buttons.forEach(button => {
+                button.disabled = locked;
+                button.style.opacity = locked ? '0.45' : '1';
+                button.style.cursor = locked ? 'not-allowed' : 'pointer';
+            });
+        }
+
+        function toggleMatchSectionLock(showName, dateKey, checked) {
+            const key = getMatchSectionLockKey(showName, dateKey);
+            if (checked) localStorage.setItem(key, 'true');
+            else localStorage.removeItem(key);
+            updateMatchSectionControls(showName, dateKey, checked);
         }
 
         async function loadShows() {
@@ -2398,7 +2420,6 @@
                 shows = await res.json();
                 populateShowSelects();
                 displayShows();
-                // Restore saved active show
                 const settingRes = await fetch(`${API}/settings/activeShow`);
                 const setting = await settingRes.json();
                 if (setting.value) {
@@ -2711,17 +2732,24 @@
         function clearTeamFilters() {
             const search = document.getElementById('teamSearch');
             const filter = document.getElementById('teamShowFilter');
+            const currentOnly = document.getElementById('teamCurrentOnlyFilter');
             if (search) search.value = '';
             if (filter) filter.value = '';
+            if (currentOnly) currentOnly.checked = false;
             displayTeams();
         }
 
         function displayTeams() {
             const query   = (document.getElementById('teamSearch')?.value || '').toLowerCase().trim();
             const showF   = (document.getElementById('teamShowFilter')?.value || '');
+            const currentOnly = document.getElementById('teamCurrentOnlyFilter')?.checked || false;
             const countEl = document.getElementById('teamFilterCount');
 
             let filtered = allTeams;
+
+            if (currentOnly) {
+                filtered = filtered.filter(t => !!(t.isCurrent || isCurrentTeam(t)));
+            }
 
             if (showF) {
                 filtered = filtered.filter(t => {
@@ -2765,7 +2793,7 @@
 
             // Update result count badge
             if (countEl) {
-                if (query || showF) {
+                if (query || showF || currentOnly) {
                     countEl.textContent = `${filtered.length} of ${allTeams.length} team${allTeams.length !== 1 ? 's' : ''}`;
                 } else {
                     countEl.textContent = allTeams.length ? `${allTeams.length} team${allTeams.length !== 1 ? 's' : ''}` : '';
@@ -3078,10 +3106,11 @@
         function editTeam(id) {
             const t = allTeams.find(x => x.id === id);
             if (!t) return;
+            const isCurrent = !!(t.isCurrent || isCurrentTeam(t));
             document.getElementById('teamEditId').value = id;
             document.getElementById('teamModalTitle').textContent = 'Edit Team / Faction';
             document.getElementById('teamName').value = t.name;
-            document.getElementById('teamIsCurrent').checked = !!(t.isCurrent);
+            document.getElementById('teamIsCurrent').checked = isCurrent;
             buildTeamMemberSlots(t.members);
             buildTagPairSlots(t.tagTeamPairs && t.tagTeamPairs.length > 0 ? t.tagTeamPairs : [{ member1: '', member2: '' }]);
             openModal('teamModal');
@@ -3235,70 +3264,62 @@
         }
 
         async function moveMatchUp(matchId, dateKey, showName) {
+            if (isMatchSectionLocked(showName, dateKey)) {
+                return;
+            }
+
             const matches = allMatches.filter(m => {
                 const notes = m.notes || '';
                 const mDate = m.date ? m.date.split('T')[0] : 'No Date';
                 return m.show === showName && mDate === dateKey && !notes.includes('[MEEVENT]') && !notes.includes('[MEMATCH:');
             }).sort((a, b) => new Date(a.date) - new Date(b.date));
-            
+
             const currentIdx = matches.findIndex(m => m.id === matchId);
-            if (currentIdx <= 0) return;
-            
-            const currentMatch = matches[currentIdx];
-            const aboveMatch = matches[currentIdx - 1];
-            
-            const currentTime = new Date(currentMatch.date);
-            const aboveTime = new Date(aboveMatch.date);
-            currentTime.setMinutes(currentTime.getMinutes() - 2);
-            aboveTime.setMinutes(aboveTime.getMinutes() + 2);
-            
-            try {
-                await fetch(`${API}/matches/${currentMatch.id}`, {
-                    method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({...currentMatch, date: currentTime.toISOString()})
-                });
-                await fetch(`${API}/matches/${aboveMatch.id}`, {
-                    method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({...aboveMatch, date: aboveTime.toISOString()})
-                });
-                await loadMatches();
-            } catch (err) {
-                alert('Error reordering matches');
-            }
+            if (currentIdx < 0) return;
+
+            const targetIdx = currentIdx > 0 ? currentIdx - 1 : matches.length - 1;
+            await reorderMatchesInList(matches, currentIdx, targetIdx);
         }
 
         async function moveMatchDown(matchId, dateKey, showName) {
+            if (isMatchSectionLocked(showName, dateKey)) {
+                return;
+            }
+
             const matches = allMatches.filter(m => {
                 const notes = m.notes || '';
                 const mDate = m.date ? m.date.split('T')[0] : 'No Date';
                 return m.show === showName && mDate === dateKey && !notes.includes('[MEEVENT]') && !notes.includes('[MEMATCH:');
             }).sort((a, b) => new Date(a.date) - new Date(b.date));
-            
+
             const currentIdx = matches.findIndex(m => m.id === matchId);
-            if (currentIdx < 0 || currentIdx >= matches.length - 1) return;
-            
-            const currentMatch = matches[currentIdx];
-            const belowMatch = matches[currentIdx + 1];
-            
-            const currentTime = new Date(currentMatch.date);
-            const belowTime = new Date(belowMatch.date);
-            currentTime.setMinutes(currentTime.getMinutes() + 2);
-            belowTime.setMinutes(belowTime.getMinutes() - 2);
-            
+            if (currentIdx < 0) return;
+
+            const targetIdx = currentIdx < matches.length - 1 ? currentIdx + 1 : 0;
+            await reorderMatchesInList(matches, currentIdx, targetIdx);
+        }
+
+        async function reorderMatchesInList(matches, currentIdx, targetIdx) {
+            if (currentIdx === targetIdx || matches.length <= 1) return;
+
+            const reordered = [...matches];
+            const [movedMatch] = reordered.splice(currentIdx, 1);
+            reordered.splice(targetIdx, 0, movedMatch);
+
+            const baseDate = new Date(reordered[0].date || new Date().toISOString());
+            const twoMinutes = 2 * 60 * 1000;
+
             try {
-                await fetch(`${API}/matches/${currentMatch.id}`, {
-                    method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({...currentMatch, date: currentTime.toISOString()})
-                });
-                await fetch(`${API}/matches/${belowMatch.id}`, {
-                    method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({...belowMatch, date: belowTime.toISOString()})
-                });
+                await Promise.all(reordered.map((match, index) => {
+                    const adjustedDate = new Date(baseDate.getTime() + index * twoMinutes);
+                    return fetch(`${API}/matches/${match.id}`, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ ...match, date: adjustedDate.toISOString() })
+                    });
+                }));
                 await loadMatches();
+                filterMatches();
             } catch (err) {
                 alert('Error reordering matches');
             }
@@ -3356,9 +3377,15 @@
                     const overLimit = matchLimit && matchCount > matchLimit;
                     
                     html += `<div style="margin-bottom:20px; border-left:3px solid var(--primary); padding-left:15px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:12px; flex-wrap:wrap;">
                             <h4 style="color:var(--text); margin:0;">📅 ${new Date(dateKey + 'T00:00').toLocaleDateString('en-US', {weekday:'long', year:'numeric', month:'short', day:'numeric'})}</h4>
-                            <span class="badge ${overLimit ? 'badge-danger' : 'badge-success'}" style="font-size:0.9em;">${matchCount} ${matchCount === 1 ? 'match' : 'matches'}</span>
+                            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                                <div style="display:inline-flex; align-items:center; gap:8px; padding:4px 10px; border-radius:999px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);">
+                                    <input type="checkbox" id="lock-${showName}-${dateKey}" ${isMatchSectionLocked(showName, dateKey) ? 'checked' : ''} onchange="toggleMatchSectionLock('${showName}', '${dateKey}', this.checked)" style="accent-color:#22c55e; width:14px; height:14px; margin:0; cursor:pointer;">
+                                    <label for="lock-${showName}-${dateKey}" style="color:#d1d5db; font-size:0.8em; margin:0; cursor:pointer; white-space:nowrap;">Lock week</label>
+                                </div>
+                                <span class="badge ${overLimit ? 'badge-danger' : 'badge-success'}" style="font-size:0.9em;">${matchCount} ${matchCount === 1 ? 'match' : 'matches'}</span>
+                            </div>
                         </div>
                         <div class="table-container">
                             <table>
@@ -3382,15 +3409,19 @@
                         const storylineTag = m.isImportant ? '<span class="badge badge-danger">⭐ Storyline</span>' : '-';
                         const category = m.category ? `<span class="badge badge-info">${m.category}</span>` : '-';
                         const participants = [m.participant1, m.participant2, m.participant3, m.participant4, m.participant5, m.participant6, m.participant7, m.participant8].filter(Boolean).join(' vs ');
+                        const upTitle = idx === 0 ? 'Move to bottom' : 'Move Up';
+                        const downTitle = idx === matches.length - 1 ? 'Move to top' : 'Move Down';
+                        const orderButtons = matches.length > 1 ? `
+                            <div style="display:flex; flex-direction:column; gap:2px;">
+                                <button data-order-action="up" data-section-show="${showName}" data-section-date="${dateKey}" onclick="moveMatchUp(${m.id}, '${dateKey}', '${showName}')" class="btn" style="padding:2px 6px; font-size:10px; background:#555;${isMatchSectionLocked(showName, dateKey) ? ' opacity:0.45; cursor:not-allowed;' : ''}" title="${upTitle}" ${isMatchSectionLocked(showName, dateKey) ? 'disabled' : ''}>▲</button>
+                                <button data-order-action="down" data-section-show="${showName}" data-section-date="${dateKey}" onclick="moveMatchDown(${m.id}, '${dateKey}', '${showName}')" class="btn" style="padding:2px 6px; font-size:10px; background:#555;${isMatchSectionLocked(showName, dateKey) ? ' opacity:0.45; cursor:not-allowed;' : ''}" title="${downTitle}" ${isMatchSectionLocked(showName, dateKey) ? 'disabled' : ''}>▼</button>
+                            </div>` : '';
                         
                         html += `<tr data-match-id="${m.id}" data-match-date="${dateKey}" data-match-show="${showName}">
                             <td style="text-align:center; font-weight:bold; color:#fff; background:#8b0000; border-radius:3px;">
                                 <div style="display:flex; align-items:center; justify-content:center; gap:5px;">
                                     <span>${idx + 1}</span>
-                                    <div style="display:flex; flex-direction:column; gap:2px;">
-                                        ${idx > 0 ? `<button onclick="moveMatchUp(${m.id}, '${dateKey}', '${showName}')" class="btn" style="padding:2px 6px; font-size:10px; background:#555;" title="Move Up">▲</button>` : ''}
-                                        ${idx < matches.length - 1 ? `<button onclick="moveMatchDown(${m.id}, '${dateKey}', '${showName}')" class="btn" style="padding:2px 6px; font-size:10px; background:#555;" title="Move Down">▼</button>` : ''}
-                                    </div>
+                                    ${orderButtons}
                                 </div>
                             </td>
                             <td>${category}</td>
@@ -5518,18 +5549,30 @@
                             <input type="hidden" id="rivalryId">
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label>Wrestler 1 *</label>
-                                    <select id="rivalryWrestler1" required>
-                                        <option value="">Select Wrestler</option>
-                                        ${wrestlers.map(w => `<option value="${w.name}">${w.name}</option>`).join('')}
-                                    </select>
+                                    <label>Side 1 *</label>
+                                    <div style="display:flex; gap:8px;">
+                                        <select id="rivalrySide1A" style="flex:1;" required>
+                                            <option value="">Select Wrestler</option>
+                                            ${wrestlers.map(w => `<option value="${w.name}">${w.name}</option>`).join('')}
+                                        </select>
+                                        <select id="rivalrySide1B" style="flex:1;">
+                                            <option value="">Optional Partner</option>
+                                            ${wrestlers.map(w => `<option value="${w.name}">${w.name}</option>`).join('')}
+                                        </select>
+                                    </div>
                                 </div>
                                 <div class="form-group">
-                                    <label>Wrestler 2 *</label>
-                                    <select id="rivalryWrestler2" required>
-                                        <option value="">Select Wrestler</option>
-                                        ${wrestlers.map(w => `<option value="${w.name}">${w.name}</option>`).join('')}
-                                    </select>
+                                    <label>Side 2 *</label>
+                                    <div style="display:flex; gap:8px;">
+                                        <select id="rivalrySide2A" style="flex:1;" required>
+                                            <option value="">Select Wrestler</option>
+                                            ${wrestlers.map(w => `<option value="${w.name}">${w.name}</option>`).join('')}
+                                        </select>
+                                        <select id="rivalrySide2B" style="flex:1;">
+                                            <option value="">Optional Partner</option>
+                                            ${wrestlers.map(w => `<option value="${w.name}">${w.name}</option>`).join('')}
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
                             <div class="form-group">
@@ -5573,16 +5616,35 @@
             document.body.insertAdjacentHTML('beforeend', html);
         }
 
+        function splitRivalrySide(sideValue) {
+            if (!sideValue) return { a: '', b: '' };
+            const parts = sideValue.split('&').map(part => part.trim()).filter(Boolean);
+            return { a: parts[0] || '', b: parts[1] || '' };
+        }
+
+        function combineRivalrySide(a, b) {
+            return [a, b].filter(Boolean).join(' & ');
+        }
+
         async function saveRivalry(e) {
             e.preventDefault();
             const id = document.getElementById('rivalryId').value;
-            const wrestler1 = document.getElementById('rivalryWrestler1').value;
-            const wrestler2 = document.getElementById('rivalryWrestler2').value;
+            const wrestler1 = combineRivalrySide(document.getElementById('rivalrySide1A').value, document.getElementById('rivalrySide1B').value);
+            const wrestler2 = combineRivalrySide(document.getElementById('rivalrySide2A').value, document.getElementById('rivalrySide2B').value);
             const description = document.getElementById('rivalryDescription').value;
             const show = document.getElementById('rivalryShow').value;
             const status = document.getElementById('rivalryStatus').value;
             const startDate = document.getElementById('rivalryStartDate').value;
             const endDate = document.getElementById('rivalryEndDate').value;
+
+            if (!wrestler1 || !wrestler2) {
+                alert('Each side must include at least one wrestler.');
+                return;
+            }
+            if (wrestler1 === wrestler2) {
+                alert('Both sides cannot be the same wrestler combination.');
+                return;
+            }
 
             const isEdit = !!id;
             const url = isEdit ? `${API}/rivalries/${id}` : `${API}/rivalries`;
@@ -5611,9 +5673,13 @@
             if (!r) return;
             openAddRivalryModal();
             setTimeout(() => {
+                const side1 = splitRivalrySide(r.wrestler1);
+                const side2 = splitRivalrySide(r.wrestler2);
                 document.getElementById('rivalryId').value = id;
-                document.getElementById('rivalryWrestler1').value = r.wrestler1;
-                document.getElementById('rivalryWrestler2').value = r.wrestler2;
+                document.getElementById('rivalrySide1A').value = side1.a || '';
+                document.getElementById('rivalrySide1B').value = side1.b || '';
+                document.getElementById('rivalrySide2A').value = side2.a || '';
+                document.getElementById('rivalrySide2B').value = side2.b || '';
                 document.getElementById('rivalryDescription').value = r.description || '';
                 document.getElementById('rivalryShow').value = r.show || '';
                 document.getElementById('rivalryStatus').value = r.status;
@@ -5678,14 +5744,26 @@
                             onclick="rfmToggleSide('${side}','external')"
                             style="font-size:0.8em;padding:4px 10px;background:#1a1a1a;border:1px solid #555;color:#aaa;">External</button>
                     </div>
-                    <select id="rfm-${side}-match" class="rfm-sel-match-${side}">
-                        <option value="">Select participant</option>
-                        ${participantOpts}
-                    </select>
-                    <select id="rfm-${side}-external" class="rfm-sel-ext-${side}" style="display:none;">
-                        <option value="">Select any wrestler</option>
-                        ${allWrestlerOpts}
-                    </select>
+                    <div style="display:flex;gap:8px;">
+                        <select id="rfm-${side}-match-1" class="rfm-sel-match-${side}" style="flex:1;">
+                            <option value="">Select participant 1</option>
+                            ${participantOpts}
+                        </select>
+                        <select id="rfm-${side}-match-2" class="rfm-sel-match-${side}" style="flex:1;">
+                            <option value="">Optional partner</option>
+                            ${participantOpts}
+                        </select>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:8px;">
+                        <select id="rfm-${side}-external-1" class="rfm-sel-ext-${side}" style="display:none;flex:1;">
+                            <option value="">Select any wrestler</option>
+                            ${allWrestlerOpts}
+                        </select>
+                        <select id="rfm-${side}-external-2" class="rfm-sel-ext-${side}" style="display:none;flex:1;">
+                            <option value="">Optional partner</option>
+                            ${allWrestlerOpts}
+                        </select>
+                    </div>
                 </div>`;
 
             const html = `
@@ -5744,21 +5822,29 @@
             document.body.insertAdjacentHTML('beforeend', html);
         }
 
-        // Toggle a rivalry side between "from match participants" and "external wrestler"
+        // Toggle a rivalry side between "from match participants" and "external wrestlers"
         function rfmToggleSide(side, mode) {
-            const matchSel    = document.getElementById(`rfm-${side}-match`);
-            const extSel      = document.getElementById(`rfm-${side}-external`);
+            const matchSel1 = document.getElementById(`rfm-${side}-match-1`);
+            const matchSel2 = document.getElementById(`rfm-${side}-match-2`);
+            const extSel1   = document.getElementById(`rfm-${side}-external-1`);
+            const extSel2   = document.getElementById(`rfm-${side}-external-2`);
             const matchToggle = document.getElementById(`rfm-toggle-${side}-match`);
             const extToggle   = document.getElementById(`rfm-toggle-${side}-external`);
 
             const isMatch = mode === 'match';
-            matchSel.style.display    = isMatch ? '' : 'none';
-            extSel.style.display      = isMatch ? 'none' : '';
-            matchSel.required         = isMatch;
-            extSel.required           = !isMatch;
-            // Reset the hidden one so it doesn't carry a stale value
-            if (isMatch) extSel.value = '';
-            else matchSel.value = '';
+            matchSel1.style.display = isMatch ? '' : 'none';
+            matchSel2.style.display = isMatch ? '' : 'none';
+            extSel1.style.display   = isMatch ? 'none' : '';
+            extSel2.style.display   = isMatch ? 'none' : '';
+            matchSel1.required      = isMatch;
+            extSel1.required        = !isMatch;
+            if (isMatch) {
+                extSel1.value = '';
+                extSel2.value = '';
+            } else {
+                matchSel1.value = '';
+                matchSel2.value = '';
+            }
 
             // Button styling
             matchToggle.style.cssText = isMatch
@@ -5773,10 +5859,14 @@
 
         // Read value from whichever side selector is active
         function rfmGetSideValue(side) {
-            const matchSel = document.getElementById(`rfm-${side}-match`);
-            const extSel   = document.getElementById(`rfm-${side}-external`);
-            // Whichever is visible is active
-            return matchSel && matchSel.style.display !== 'none' ? matchSel.value : (extSel ? extSel.value : '');
+            const matchSel1 = document.getElementById(`rfm-${side}-match-1`);
+            const matchSel2 = document.getElementById(`rfm-${side}-match-2`);
+            const extSel1   = document.getElementById(`rfm-${side}-external-1`);
+            const extSel2   = document.getElementById(`rfm-${side}-external-2`);
+            const values = (matchSel1 && matchSel1.style.display !== 'none')
+                ? [matchSel1.value, matchSel2.value]
+                : [extSel1.value, extSel2.value];
+            return values.filter(Boolean).join(' & ');
         }
 
         async function saveRivalryFromMatch(e, matchId) {
@@ -5789,9 +5879,9 @@
             const endDate     = document.getElementById('rfm-end').value || null;
             const description = document.getElementById('rfm-desc').value;
 
-            if (!wrestler1) { alert('Please select Side 1 wrestler'); return; }
-            if (!wrestler2) { alert('Please select Side 2 wrestler'); return; }
-            if (wrestler1 === wrestler2) { alert('Both sides cannot be the same wrestler'); return; }
+            if (!wrestler1) { alert('Please select Side 1 wrestler(s)'); return; }
+            if (!wrestler2) { alert('Please select Side 2 wrestler(s)'); return; }
+            if (wrestler1 === wrestler2) { alert('Both sides cannot be the same wrestler combination'); return; }
             if (!show) { alert('Please select a show'); return; }
 
             try {
