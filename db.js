@@ -103,7 +103,7 @@ class DatabaseManager {
     `);
 
     // Insert default shows if not exists
-    const shows = ['RAW', 'SmackDown', 'NXT', 'TNA', 'AAA', 'AEW', 'Legends', 'Ultra Legends', 'Unassigned', 'DLC/AAA', 'Other WWE'];
+    const shows = ['RAW', 'SmackDown', 'NXT', 'TNA', 'AAA', 'AEW', 'Legends', 'Ultra Legends', 'Unassigned', 'Other WWE'];
     for (const show of shows) {
       try {
         this.db.prepare(`INSERT INTO shows (id, name, abbreviation) VALUES (?, ?, ?)`).run(

@@ -15,7 +15,6 @@ const allShows = new Map([
   ['SmackDown', 'SmackDown'],
   ['NXT', 'NXT'],
   ['Legends', 'Legends'],
-  ['DLC/AAA', 'DLC/AAA'],
   ['Other WWE', 'Other WWE'],
   ['TNA', 'TNA'],
   ['AAA', 'AAA'],

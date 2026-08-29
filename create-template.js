@@ -160,16 +160,15 @@ db.exec(`
 
 // Insert default shows
 const shows = [
-  { name: 'RAW', abbr: 'RAW', day: 'Monday', matchLimit: 7 },
-  { name: 'SmackDown', abbr: 'SMA', day: 'Friday', matchLimit: 7 },
-  { name: 'NXT', abbr: 'NXT', day: 'Thursday', matchLimit: 6 },
-  { name: 'TNA', abbr: 'TNA', day: 'Tuesday', matchLimit: 6 },
-  { name: 'AAA', abbr: 'AAA', day: 'Wednesday', matchLimit: 5 },
-  { name: 'AEW', abbr: 'AEW', day: 'Thursday', matchLimit: 7 },
+  { name: 'RAW', abbr: 'RAW', day: 'Monday', matchLimit: 9 },
+  { name: 'SmackDown', abbr: 'SMA', day: 'Friday', matchLimit: 9 },
+  { name: 'NXT', abbr: 'NXT', day: 'Thursday', matchLimit: 7 },
+  { name: 'TNA', abbr: 'TNA', day: 'Tuesday', matchLimit: 9 },
+  { name: 'AAA', abbr: 'AAA', day: 'Wednesday', matchLimit: 9 },
+  { name: 'AEW', abbr: 'AEW', day: 'Thursday', matchLimit: 9 },
   { name: 'Legends', abbr: 'LEG', day: null, matchLimit: null },
   { name: 'Ultra Legends', abbr: 'ULT', day: null, matchLimit: null },
   { name: 'Unassigned', abbr: 'UNA', day: null, matchLimit: null },
-  { name: 'DLC/AAA', abbr: 'DLC', day: null, matchLimit: null },
   { name: 'Other WWE', abbr: 'OTH', day: null, matchLimit: null },
 ];
 
