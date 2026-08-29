@@ -242,6 +242,11 @@ class DatabaseManager {
       }
       console.log('✅ Added shows column to teams and migrated data');
     }
+    // Add isCurrent column for manual "Current" tag override
+    if (teamCols.length && !teamCols.find(c => c.name === 'isCurrent')) {
+      this.db.exec(`ALTER TABLE teams ADD COLUMN isCurrent INTEGER DEFAULT 0`);
+      console.log('✅ Added isCurrent column to teams');
+    }
 
     // Migrate: remove NOT NULL constraint from wrestlers.show if it exists
     const wrestlerColDefs = this.db.prepare(`PRAGMA table_info(wrestlers)`).all();
@@ -371,16 +376,15 @@ class DatabaseManager {
 
     // Insert default shows
     const shows = [
-      { name: 'RAW',          abbr: 'RAW', day: 'Monday', matchLimit: 7 },
-      { name: 'SmackDown',    abbr: 'SMA', day: 'Friday', matchLimit: 7 },
-      { name: 'NXT',          abbr: 'NXT', day: 'Thursday', matchLimit: 6 },
-      { name: 'TNA',          abbr: 'TNA', day: 'Tuesday', matchLimit: 6 },
-      { name: 'AAA',          abbr: 'AAA', day: 'Wednesday', matchLimit: 5 },
-      { name: 'AEW',          abbr: 'AEW', day: 'Thursday', matchLimit: 7 },
+      { name: 'RAW',          abbr: 'RAW', day: 'Monday', matchLimit: 9 },
+      { name: 'SmackDown',    abbr: 'SMA', day: 'Friday', matchLimit: 9 },
+      { name: 'NXT',          abbr: 'NXT', day: 'Thursday', matchLimit: 5 },
+      { name: 'TNA',          abbr: 'TNA', day: 'Tuesday', matchLimit: 9 },
+      { name: 'AAA',          abbr: 'AAA', day: 'Wednesday', matchLimit: 9 },
+      { name: 'AEW',          abbr: 'AEW', day: 'Thursday', matchLimit: 9 },
       { name: 'Legends',      abbr: 'LEG', day: null, matchLimit: null },
       { name: 'Ultra Legends',abbr: 'ULT', day: null, matchLimit: null },
       { name: 'Unassigned',   abbr: 'UNA', day: null, matchLimit: null },
-      { name: 'DLC/AAA',      abbr: 'DLC', day: null, matchLimit: null },
       { name: 'Other WWE',    abbr: 'OTH', day: null, matchLimit: null },
     ];
     for (const show of shows) {
@@ -389,10 +393,21 @@ class DatabaseManager {
         this.db.prepare(`INSERT INTO shows (id, name, abbreviation, day, matchLimit) VALUES (?, ?, ?, ?, ?)`)
           .run(id, show.name, show.abbr, show.day, show.matchLimit);
       } catch (e) {
-        // Already exists — update day and matchLimit in case columns were just added
-        this.db.prepare(`UPDATE shows SET day = ?, matchLimit = ? WHERE name = ?`)
-          .run(show.day, show.matchLimit, show.name);
+        // Already exists — only set day if it's currently NULL (first-time migration),
+        // never overwrite matchLimit so user-configured values survive restarts
+        this.db.prepare(`UPDATE shows SET day = COALESCE(day, ?) WHERE name = ?`)
+          .run(show.day, show.name);
       }
+    }
+
+    // Migrate: add settings table
+    const settingsCols = this.db.prepare(`PRAGMA table_info(settings)`).all();
+    if (!settingsCols.length) {
+      this.db.exec(`CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      )`);
+      console.log('✅ Created settings table');
     }
 
     console.log('✅ Database initialized');
@@ -717,18 +732,18 @@ class DatabaseManager {
     return this.db.prepare('SELECT * FROM teams ORDER BY show, name').all();
   }
 
-  addTeam(name, show, members, tagTeamPairs, shows) {
+  addTeam(name, show, members, tagTeamPairs, shows, isCurrent = 0) {
     const showsJson = shows && Array.isArray(shows) && shows.length > 0 ? JSON.stringify(shows) : null;
     const result = this.db.prepare(
-      `INSERT INTO teams (name, show, members, tagTeamPairs, shows) VALUES (?, ?, ?, ?, ?)`
-    ).run(name, show || null, Array.isArray(members) ? members.join(',') : members, tagTeamPairs || null, showsJson);
+      `INSERT INTO teams (name, show, members, tagTeamPairs, shows, isCurrent) VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(name, show || null, Array.isArray(members) ? members.join(',') : members, tagTeamPairs || null, showsJson, isCurrent ? 1 : 0);
     return result.lastInsertRowid;
   }
 
-  updateTeam(id, name, show, members, tagTeamPairs, shows) {
+  updateTeam(id, name, show, members, tagTeamPairs, shows, isCurrent = 0) {
     const showsJson = shows && Array.isArray(shows) && shows.length > 0 ? JSON.stringify(shows) : null;
-    this.db.prepare(`UPDATE teams SET name=?, show=?, members=?, tagTeamPairs=?, shows=? WHERE id=?`)
-      .run(name, show || null, Array.isArray(members) ? members.join(',') : members, tagTeamPairs || null, showsJson, id);
+    this.db.prepare(`UPDATE teams SET name=?, show=?, members=?, tagTeamPairs=?, shows=?, isCurrent=? WHERE id=?`)
+      .run(name, show || null, Array.isArray(members) ? members.join(',') : members, tagTeamPairs || null, showsJson, isCurrent ? 1 : 0, id);
   }
 
   deleteTeam(id) {
@@ -820,6 +835,15 @@ class DatabaseManager {
 
   deleteRivalry(id) {
     this.db.prepare('DELETE FROM rivalries WHERE id = ?').run(id);
+  }
+
+  getSetting(key) {
+    const row = this.db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+    return row ? row.value : null;
+  }
+
+  setSetting(key, value) {
+    this.db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value);
   }
 
   // ==================== ACCOUNTS ====================

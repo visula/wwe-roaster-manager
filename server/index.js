@@ -8,7 +8,6 @@ import fs from 'fs';
 import multer from 'multer';
 import { parse } from 'csv-parse/sync';
 import Database from './db.js';
-import BetterSqlite3 from 'better-sqlite3';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -329,20 +328,20 @@ app.get('/api/teams', (req, res) => {
 });
 
 app.post('/api/teams', (req, res) => {
-  const { name, show, members, tagTeamPairs, shows } = req.body;
+  const { name, show, members, tagTeamPairs, shows, isCurrent } = req.body;
   if (!name) return res.status(400).json({ error: 'Team name required' });
   try {
     const tagTeamPairsStr = tagTeamPairs && tagTeamPairs.length > 0 ? JSON.stringify(tagTeamPairs) : null;
-    const id = db.addTeam(name, show || null, members || [], tagTeamPairsStr, shows || []);
-    res.json({ id, name, show, members: members || [], tagTeamPairs: tagTeamPairs || [], shows: shows || [] });
+    const id = db.addTeam(name, show || null, members || [], tagTeamPairsStr, shows || [], isCurrent ? 1 : 0);
+    res.json({ id, name, show, members: members || [], tagTeamPairs: tagTeamPairs || [], shows: shows || [], isCurrent: isCurrent ? 1 : 0 });
   } catch(e) { res.status(400).json({ error: 'Team name already exists' }); }
 });
 
 app.put('/api/teams/:id', (req, res) => {
-  const { name, show, members, tagTeamPairs, shows } = req.body;
+  const { name, show, members, tagTeamPairs, shows, isCurrent } = req.body;
   try {
     const tagTeamPairsStr = tagTeamPairs && tagTeamPairs.length > 0 ? JSON.stringify(tagTeamPairs) : null;
-    db.updateTeam(req.params.id, name, show || null, members || [], tagTeamPairsStr, shows || []);
+    db.updateTeam(req.params.id, name, show || null, members || [], tagTeamPairsStr, shows || [], isCurrent ? 1 : 0);
     res.json({ success: true });
   } catch(e) { res.status(400).json({ error: e.message }); }
 });
@@ -529,6 +528,18 @@ app.delete('/api/accounts/:id', (req, res) => {
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
+});
+
+// ==================== SETTINGS ====================
+app.get('/api/settings/:key', (req, res) => {
+  const value = db.getSetting(req.params.key);
+  res.json({ key: req.params.key, value });
+});
+
+app.post('/api/settings/:key', (req, res) => {
+  const { value } = req.body;
+  db.setSetting(req.params.key, value);
+  res.json({ success: true });
 });
 
 // ==================== DASHBOARD ====================

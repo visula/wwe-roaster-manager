@@ -198,6 +198,20 @@
         th:hover { background:rgba(204,0,0,0.2); }
         th.sort-asc::after  { content:' ▲'; font-size:0.75em; }
         th.sort-desc::after { content:' ▼'; font-size:0.75em; }
+
+        /* ── Searchable participant select ── */
+        .ss-wrap { position:relative; }
+        .ss-input { width:100%; padding:8px 10px; background:#1a1a1a; border:1px solid #444; border-radius:6px; color:#fff; font-size:0.88em; box-sizing:border-box; }
+        .ss-input:focus { outline:none; border-color:var(--red); }
+        .ss-dropdown { display:none; position:absolute; top:100%; left:0; right:0; z-index:999;
+            background:#1a1a1a; border:1px solid #555; border-top:none; border-radius:0 0 6px 6px;
+            max-height:200px; overflow-y:auto; box-shadow:0 6px 16px rgba(0,0,0,0.6); }
+        .ss-dropdown.open { display:block; }
+        .ss-option { padding:7px 10px; font-size:0.87em; color:#e0e0e0; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .ss-option:hover, .ss-option.active { background:rgba(204,0,0,0.25); color:#fff; }
+        .ss-option.selected { background:rgba(204,0,0,0.15); color:#fca5a5; }
+        .ss-option.no-match { color:#888; cursor:default; font-style:italic; padding:8px 10px; }
+        .ss-hidden { display:none !important; }
         td { padding:11px 14px; border-bottom:1px solid var(--border); font-size:0.9em; color:var(--text); }
         tbody tr { transition:background 0.15s; }
         tbody tr:hover { background:rgba(204,0,0,0.06); }
@@ -456,9 +470,13 @@
             </div>
 
             <div class="filter-section">
-                <select id="matchShowFilter" onchange="filterMatches()">
-                    <option value="">All Shows</option>
-                </select>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <label style="color:#888; font-size:0.9em; white-space:nowrap; margin:0;">Active Show:</label>
+                    <select id="activeShowSelector" onchange="onActiveShowChange()">
+                        <option value="">All Shows</option>
+                    </select>
+                </div>
+                <select id="matchShowFilter" onchange="filterMatches()" style="display:none;"></select>
                 <select id="matchStatusFilter" onchange="filterMatches()">
                     <option value="">All Statuses</option>
                     <option value="Pending">Pending</option>
@@ -490,6 +508,7 @@
             </div>
 
             <h3 style="margin: 20px 0 10px 0; color: var(--text);">Rivalries</h3>
+            <div id="rivalriesContainer"></div>
             <div class="table-container">
                 <table>
                     <thead>
@@ -500,10 +519,11 @@
                             <th>Start Date</th>
                             <th>End Date</th>
                             <th>Description</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="rivalriesTable">
-                        <tr><td colspan="6" class="no-data">Loading rivalries...</td></tr>
+                        <tr><td colspan="7" class="no-data">Loading rivalries...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -705,14 +725,24 @@
                 <h2>Teams &amp; Factions</h2>
                 <button class="btn btn-primary" onclick="openAddTeamModal()">+ Add Team</button>
             </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:15px;align-items:center;">
+                <input type="text" id="teamSearch" placeholder="Search by name or member..." oninput="filterTeams()"
+                    style="flex:1;min-width:200px;padding:8px 12px;background:#1a1a1a;border:1px solid #333;border-radius:6px;color:#fff;font-size:0.9em;">
+                <select id="teamShowFilter" onchange="filterTeams()"
+                    style="padding:8px 12px;background:#1a1a1a;border:1px solid #333;border-radius:6px;color:#fff;font-size:0.9em;min-width:160px;">
+                    <option value="">All Shows</option>
+                </select>
+                <button class="btn btn-secondary" onclick="clearTeamFilters()" style="padding:8px 14px;font-size:0.9em;">Clear</button>
+                <span id="teamFilterCount" style="color:#888;font-size:0.85em;white-space:nowrap;"></span>
+            </div>
             <div class="table-container">
                 <table>
                     <thead>
                         <tr>
-                            <th>Team Name</th>
-                            <th>Show</th>
+                            <th data-table="teams" data-col="name" style="cursor:pointer;">Team Name</th>
+                            <th data-table="teams" data-col="show" style="cursor:pointer;">Show</th>
                             <th>Members</th>
-                            <th>Size</th>
+                            <th data-table="teams" data-col="size" style="cursor:pointer;">Size</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -932,6 +962,8 @@
                         <option value="Steel Cage Match">Steel Cage Match</option>
                         <option value="3 Stages of Hell">3 Stages of Hell</option>
                         <option value="Ambulance Match">Ambulance Match</option>
+                        <option value="Gauntlet Match">Gauntlet Match</option>
+                        <option value="Gauntlet Eliminator">Gauntlet Eliminator</option>
                     </select>
                 </div>
                 <div id="meMatchParticipantsGrid"></div>
@@ -978,6 +1010,13 @@
                 <div class="form-group">
                     <label>Team / Faction Name *</label>
                     <input type="text" id="teamName" placeholder="e.g. Judgment Day" required>
+                </div>
+
+                <!-- Current Tag -->
+                <div class="form-group" style="display:flex;align-items:center;gap:10px;background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.25);border-radius:6px;padding:10px 14px;">
+                    <input type="checkbox" id="teamIsCurrent" style="width:16px;height:16px;accent-color:#22c55e;cursor:pointer;">
+                    <label for="teamIsCurrent" style="margin:0;cursor:pointer;color:#4ade80;font-weight:600;">Mark as Current team</label>
+                    <small style="color:#888;margin-left:4px;">(shows the green "Current" badge)</small>
                 </div>
 
                 <!-- Auto-calculated Shows -->
@@ -1257,6 +1296,8 @@
                         <option value="Inferno Match">Inferno Match</option>
                         <option value="3 Stages of Hell">3 Stages of Hell</option>
                         <option value="Battle Royal">Battle Royal (Multi 8+)</option>
+                        <option value="Gauntlet Match">Gauntlet Match</option>
+                        <option value="Gauntlet Eliminator">Gauntlet Eliminator</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -1493,6 +1534,9 @@
             'Inferno Match':        ['Special Matches'],
             '3 Stages of Hell':     ['Special Matches'],
             'Battle Royal':         ['Battle Royal'],
+            // Gauntlet matches
+            'Gauntlet Match':       ['Special Matches'],
+            'Gauntlet Eliminator':  ['Special Matches'],
             // Main event exclusives
             'Elimination Chamber':  ['Special Matches'],
             'Royal Rumble':         ['Battle Royal'],
@@ -1504,7 +1548,7 @@
 
         // Configurable match categories and types
         let matchCategories = ['Normal','Tag Team','Tornado Tag','Handicap','Extreme Rules','Falls Count Anywhere','Hell in a Cell','Steel Cage','Tables Match','Ladder Match','TLC','Submission Match','Last Man Standing','Iron Man Match','No Holds Barred','Backstage Brawl','Special Matches','Battle Royal','Promo'];
-        let matchTypes = ['One vs One','Triple Threat','Fatal 4-Way','5-Way','6-Way','8-Way','Two on Two','Two on Two Mixed Tag','Two on Two Tornado Tag','Three on Three','Three on Three Tornado Tag','Four on Four','Triple Threat Tornado Tag','4-Way Tornado Tag','One on Two','One on Two Tornado Tag','One on Three','Two on Three','Handicap One on Two','Hell in a Cell','Steel Cage Match','Tables Match','Ladder Match','TLC Match','Submission Match','Last Man Standing','Iron Man Match','Ambulance Match','Casket Match','Dumpster Match','I Quit Match','Inferno Match','3 Stages of Hell','Battle Royal'];
+        let matchTypes = ['One vs One','Triple Threat','Fatal 4-Way','5-Way','6-Way','8-Way','Two on Two','Two on Two Mixed Tag','Two on Two Tornado Tag','Three on Three','Three on Three Tornado Tag','Four on Four','Triple Threat Tornado Tag','4-Way Tornado Tag','One on Two','One on Two Tornado Tag','One on Three','Two on Three','Handicap One on Two','Hell in a Cell','Steel Cage Match','Tables Match','Ladder Match','TLC Match','Submission Match','Last Man Standing','Iron Man Match','Ambulance Match','Casket Match','Dumpster Match','I Quit Match','Inferno Match','3 Stages of Hell','Battle Royal','Gauntlet Match','Gauntlet Eliminator'];
 
         // Load from localStorage
         function loadMatchConfig() {
@@ -1660,6 +1704,25 @@
 
         // ==================== SEASON SETUP ====================
 
+        function getCurrentSeasonStartDate() {
+            const input = document.getElementById('seasonStartDate');
+            return (input && input.value) || localStorage.getItem('seasonStartDate') || '';
+        }
+
+        async function persistSeasonStartDate(val) {
+            if (!val) return;
+            localStorage.setItem('seasonStartDate', val);
+            try {
+                await fetch(`${API}/settings/seasonStartDate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ value: val })
+                });
+            } catch (err) {
+                console.warn('Unable to persist season start setting:', err);
+            }
+        }
+
         async function applySeasonStart() {
             const val = document.getElementById('seasonStartDate').value;
             if (!val) return alert('Please select a date.');
@@ -1676,8 +1739,7 @@
                     return;
                 }
                 
-                // Save to localStorage
-                localStorage.setItem('seasonStartDate', val);
+                await persistSeasonStartDate(val);
                 
                 const data = await res.json();
                 await loadShows();
@@ -2234,7 +2296,8 @@
                     });
                     th.classList.add(dir === 'asc' ? 'sort-asc' : 'sort-desc');
 
-                    if (table === 'roster') displayRoster(sortData([...wrestlers], col, dir));
+                    if (table === 'roster') filterRoster();
+                    if (table === 'teams') filterTeams();
                     if (table === 'matches') displayMatches(sortData([...allMatches], col, dir));
                     if (table === 'champ') displayChampionships(sortData([...championships], col, dir));
                     if (table === 'transfers') displayTransfers(sortData([...transfers], col, dir));
@@ -2259,10 +2322,20 @@
         }
 
         // Load saved season start date on page load
-        function loadSeasonStartDate() {
-            const saved = localStorage.getItem('seasonStartDate');
-            if (saved) {
-                document.getElementById('seasonStartDate').value = saved;
+        async function loadSeasonStartDate() {
+            try {
+                const settingRes = await fetch(`${API}/settings/seasonStartDate`);
+                const setting = await settingRes.json();
+                const saved = setting.value || localStorage.getItem('seasonStartDate');
+                if (saved) {
+                    document.getElementById('seasonStartDate').value = saved;
+                    localStorage.setItem('seasonStartDate', saved);
+                }
+            } catch (err) {
+                const saved = localStorage.getItem('seasonStartDate');
+                if (saved) {
+                    document.getElementById('seasonStartDate').value = saved;
+                }
             }
         }
 
@@ -2325,6 +2398,16 @@
                 shows = await res.json();
                 populateShowSelects();
                 displayShows();
+                // Restore saved active show
+                const settingRes = await fetch(`${API}/settings/activeShow`);
+                const setting = await settingRes.json();
+                if (setting.value) {
+                    const sel = document.getElementById('activeShowSelector');
+                    if (sel) {
+                        sel.value = setting.value;
+                        onActiveShowChange();
+                    }
+                }
             } catch (err) {
                 console.error('Error loading shows:', err);
             }
@@ -2374,6 +2457,33 @@
                 });
                 select.value = currentValue;
             });
+
+            // Populate active show selector (same pool as matchShow)
+            const activeShowSel = document.getElementById('activeShowSelector');
+            if (activeShowSel) {
+                const prev = activeShowSel.value;
+                activeShowSel.innerHTML = '<option value="">All Shows</option>';
+                scheduledShows.forEach(show => {
+                    const option = document.createElement('option');
+                    option.value = show.name;
+                    option.textContent = `${show.name}${show.day ? ` (${show.day})` : ''}`;
+                    activeShowSel.appendChild(option);
+                });
+                if (prev) activeShowSel.value = prev;
+            }
+        }
+
+        function onActiveShowChange() {
+            const show = document.getElementById('activeShowSelector').value;
+            fetch(`${API}/settings/activeShow`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ value: show })
+            });
+            // Sync hidden filter and refresh
+            const matchShowFilter = document.getElementById('matchShowFilter');
+            if (matchShowFilter) matchShowFilter.value = show;
+            filterMatches();
         }
 
         function populateShowEligibleOptions(selected = []) {
@@ -2476,17 +2586,30 @@
                 matchLimit = document.getElementById('showMatchLimitWeekly').value || null;
             }
             
-            // Calculate next episode date if day is set
-            let nextEpisodeDate = null;
+            const existingShow = editingShowId ? shows.find(s => s.id === editingShowId) : null;
+            let nextEpisodeDate = existingShow && existingShow.nextEpisodeDate ? existingShow.nextEpisodeDate : null;
             if (day && DAY_INDEX[day] !== undefined) {
-                const today = new Date();
-                const todayDayIndex = today.getDay();
-                const targetDayIndex = DAY_INDEX[day];
-                let daysUntilNext = targetDayIndex - todayDayIndex;
-                if (daysUntilNext <= 0) daysUntilNext += 7;
-                const nextDate = new Date(today);
-                nextDate.setDate(today.getDate() + daysUntilNext);
-                nextEpisodeDate = nextDate.toISOString().split('T')[0];
+                const seasonStart = getCurrentSeasonStartDate();
+                if (seasonStart) {
+                    const base = new Date(seasonStart);
+                    const monday = new Date(base);
+                    monday.setDate(base.getDate() - ((base.getDay() + 6) % 7));
+                    const offset = DAY_INDEX[day];
+                    const nextDate = new Date(monday);
+                    nextDate.setDate(monday.getDate() + (offset === 0 ? 7 : offset) - 1);
+                    nextEpisodeDate = nextDate.toISOString().split('T')[0];
+                } else if (!existingShow || !existingShow.nextEpisodeDate) {
+                    const today = new Date();
+                    const todayDayIndex = today.getDay();
+                    const targetDayIndex = DAY_INDEX[day];
+                    let daysUntilNext = targetDayIndex - todayDayIndex;
+                    if (daysUntilNext <= 0) daysUntilNext += 7;
+                    const nextDate = new Date(today);
+                    nextDate.setDate(today.getDate() + daysUntilNext);
+                    nextEpisodeDate = nextDate.toISOString().split('T')[0];
+                }
+            } else {
+                nextEpisodeDate = null;
             }
             
             const method = id ? 'PUT' : 'POST';
@@ -2558,29 +2681,136 @@
                 // Merge DB teams with builtins (DB takes precedence by name)
                 const dbNames = new Set(allTeams.map(t => t.name));
                 TEAMS = [...allTeams, ...BUILTIN_TEAMS.filter(t => !dbNames.has(t.name))];
+                populateTeamShowFilter();
                 displayTeams();
             } catch(err) { console.error('Error loading teams:', err); }
         }
 
+        function populateTeamShowFilter() {
+            const sel = document.getElementById('teamShowFilter');
+            if (!sel) return;
+            const current = sel.value;
+            // Collect every show referenced by any team
+            const showSet = new Set();
+            allTeams.forEach(t => {
+                (t.shows && t.shows.length > 0 ? t.shows : (t.show ? [t.show] : [])).forEach(s => showSet.add(s));
+            });
+            sel.innerHTML = '<option value="">All Shows</option>';
+            [...showSet].sort().forEach(s => {
+                const o = document.createElement('option');
+                o.value = s; o.textContent = s;
+                sel.appendChild(o);
+            });
+            if (current && showSet.has(current)) sel.value = current;
+        }
+
+        function filterTeams() {
+            displayTeams();
+        }
+
+        function clearTeamFilters() {
+            const search = document.getElementById('teamSearch');
+            const filter = document.getElementById('teamShowFilter');
+            if (search) search.value = '';
+            if (filter) filter.value = '';
+            displayTeams();
+        }
+
         function displayTeams() {
-            const html = allTeams.length > 0
-                ? allTeams.map(t => {
-                    const showBadges = (t.shows && t.shows.length > 0 ? t.shows : (t.show ? [t.show] : [])).map(s => 
+            const query   = (document.getElementById('teamSearch')?.value || '').toLowerCase().trim();
+            const showF   = (document.getElementById('teamShowFilter')?.value || '');
+            const countEl = document.getElementById('teamFilterCount');
+
+            let filtered = allTeams;
+
+            if (showF) {
+                filtered = filtered.filter(t => {
+                    const teamShows = t.shows && t.shows.length > 0 ? t.shows : (t.show ? [t.show] : []);
+                    return teamShows.includes(showF);
+                });
+            }
+
+            if (query) {
+                filtered = filtered.filter(t =>
+                    t.name.toLowerCase().includes(query) ||
+                    (t.members || []).some(m => m.toLowerCase().includes(query))
+                );
+            }
+
+            // Apply current sort state
+            const { col: sCol = 'name', dir: sDir = 'asc' } = sortState['teams'] || {};
+            filtered = [...filtered].sort((a, b) => {
+                let av, bv;
+                if (sCol === 'size') {
+                    av = (a.members || []).length;
+                    bv = (b.members || []).length;
+                } else if (sCol === 'show') {
+                    const aShows = a.shows && a.shows.length > 0 ? a.shows : (a.show ? [a.show] : []);
+                    const bShows = b.shows && b.shows.length > 0 ? b.shows : (b.show ? [b.show] : []);
+                    av = aShows[0] || '';
+                    bv = bShows[0] || '';
+                } else {
+                    av = (a[sCol] ?? '').toString().toLowerCase();
+                    bv = (b[sCol] ?? '').toString().toLowerCase();
+                }
+                if (av < bv) return sDir === 'asc' ? -1 : 1;
+                if (av > bv) return sDir === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            // Update sort indicators on headers
+            document.querySelectorAll('th[data-table="teams"]').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+            const activeHeader = document.querySelector(`th[data-table="teams"][data-col="${sCol}"]`);
+            if (activeHeader) activeHeader.classList.add(sDir === 'asc' ? 'sort-asc' : 'sort-desc');
+
+            // Update result count badge
+            if (countEl) {
+                if (query || showF) {
+                    countEl.textContent = `${filtered.length} of ${allTeams.length} team${allTeams.length !== 1 ? 's' : ''}`;
+                } else {
+                    countEl.textContent = allTeams.length ? `${allTeams.length} team${allTeams.length !== 1 ? 's' : ''}` : '';
+                }
+            }
+
+            const html = filtered.length > 0
+                ? filtered.map(t => {
+                    const teamShows = t.shows && t.shows.length > 0 ? t.shows : (t.show ? [t.show] : []);
+                    const showBadges = teamShows.map(s =>
                         `<span class="badge badge-info" style="margin:2px;">${s}</span>`
                     ).join('');
+                    const memberDisplay = (t.members || []).map(member => {
+                        const memberShows = getWrestlerShows(member);
+                        const showText = memberShows.length ? memberShows.join(', ') : 'Unassigned';
+                        // Highlight matching member name when searching
+                        const displayName = query && member.toLowerCase().includes(query)
+                            ? `<mark style="background:rgba(251,191,36,0.3);color:#fbbf24;border-radius:3px;padding:0 2px;">${member}</mark>`
+                            : `<strong>${member}</strong>`;
+                        return `<div>${displayName} <span style="color:#888;">(${showText})</span></div>`;
+                    }).join('');
                     const showDisplay = showBadges || '<span class="badge badge-warning">All Shows</span>';
+                    const isCurrent = isCurrentTeam(t);
                     return `<tr>
-                    <td><strong>${t.name}</strong></td>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                            <strong>${t.name}</strong>
+                            ${isCurrent ? '<span class="badge badge-success">Current</span>' : ''}
+                        </div>
+                    </td>
                     <td>${showDisplay}</td>
-                    <td>${t.members.join(', ')}</td>
-                    <td><span class="badge badge-info">${t.members.length}</span></td>
+                    <td>${memberDisplay || '—'}</td>
+                    <td><span class="badge badge-info">${(t.members || []).length}</span></td>
                     <td><div class="action-buttons">
                         <button class="btn btn-secondary" onclick="editTeam(${t.id})">Edit</button>
                         <button class="btn btn-danger" onclick="deleteTeam(${t.id})">Delete</button>
                     </div></td>
                 </tr>`;
                 }).join('')
-                : '<tr><td colspan="5" class="no-data">No custom teams yet. Add teams above or use the built-in defaults.</td></tr>';
+                : `<tr><td colspan="5" class="no-data">${
+                    allTeams.length === 0
+                        ? 'No custom teams yet. Add teams above or use the built-in defaults.'
+                        : 'No teams match your search.'
+                  }</td></tr>`;
+
             document.getElementById('teamsTable').innerHTML = html;
         }
 
@@ -2588,6 +2818,7 @@
             document.getElementById('teamEditId').value = '';
             document.getElementById('teamModalTitle').textContent = 'Add Team / Faction';
             document.getElementById('teamName').value = '';
+            document.getElementById('teamIsCurrent').checked = false;
             buildTeamMemberSlots([]);
             buildTagPairSlots([]);
             openModal('teamModal');
@@ -2641,6 +2872,63 @@
             ).join('');
         }
 
+        function getWrestlerShows(memberName) {
+            if (!memberName) return [];
+            const wrestler = wrestlers.find(w => w.name === memberName);
+            if (!wrestler) return [];
+            return wrestler.shows && wrestler.shows.length > 0 ? wrestler.shows : (wrestler.show ? [wrestler.show] : []);
+        }
+
+        function isCurrentTeam(team) {
+            // Manual override takes priority
+            if (team.isCurrent) return true;
+
+            const members = Array.isArray(team.members) ? team.members.filter(Boolean) : [];
+            if (members.length < 2) return false;
+
+            const invalidShows = new Set(['Unassigned', 'Legends', 'Ultra Legends']);
+            const showCounts = {};
+
+            members.forEach(memberName => {
+                const memberShows = getWrestlerShows(memberName)
+                    .map(show => String(show).trim())
+                    .filter(show => show && !invalidShows.has(show));
+
+                memberShows.forEach(show => {
+                    showCounts[show] = (showCounts[show] || 0) + 1;
+                });
+            });
+
+            return Object.values(showCounts).some(count => count >= 2);
+        }
+
+        function getTeamMemberConflictWarnings() {
+            const members = Array.from(document.querySelectorAll('.teamMemberSelect')).map(s => s.value).filter(Boolean);
+            const duplicates = members.filter((member, index) => members.indexOf(member) !== index);
+            const tagPairs = getTagPairsFromForm();
+            const seenInPairs = new Set();
+            const pairConflicts = [];
+            tagPairs.forEach(pair => {
+                [pair.member1, pair.member2].filter(Boolean).forEach(member => {
+                    if (seenInPairs.has(member)) {
+                        pairConflicts.push(member);
+                    }
+                    seenInPairs.add(member);
+                });
+            });
+            return { duplicates: [...new Set(duplicates)], pairConflicts: [...new Set(pairConflicts)] };
+        }
+
+        function validateTeamMembers() {
+            const { duplicates, pairConflicts } = getTeamMemberConflictWarnings();
+            const conflicts = [...new Set([...duplicates, ...pairConflicts])];
+            if (conflicts.length > 0) {
+                alert(`The following wrestlers appear more than once in the team setup and would cause conflicts: ${conflicts.join(', ')}. Please remove duplicates.`);
+                return false;
+            }
+            return true;
+        }
+
         function buildTeamMemberSlots(members) {
             const container = document.getElementById('teamMembersContainer');
             container.innerHTML = '';
@@ -2649,23 +2937,27 @@
             
             members.forEach((m, i) => {
                 const div = document.createElement('div');
-                div.style.cssText = 'display:flex;gap:10px;align-items:center;padding:8px;background:#1a1a1a;border-radius:4px;';
+                div.style.cssText = 'display:flex;flex-direction:column;gap:6px;padding:8px;background:#1a1a1a;border-radius:4px;';
+                const memberShows = getWrestlerShows(m);
+                const showText = memberShows.length ? memberShows.join(', ') : 'Unassigned';
                 div.innerHTML = `
-                    <span style="min-width:30px;color:#888;font-weight:bold;">#${i+1}</span>
-                    <select class="teamMemberSelect" style="flex:1;" onchange="updateAutoCalculatedShows()">
-                        <option value="">Select Wrestler</option>
-                        ${pool.map(w => {
-                            const wrestlerShows = w.shows && w.shows.length > 0 ? w.shows : (w.show ? [w.show] : []);
-                            return `<option value="${w.name}">${w.name} (${wrestlerShows.join(', ')})</option>`;
-                        }).join('')}
-                    </select>
-                    <button type="button" class="btn btn-danger" style="padding:8px 14px;" onclick="removeTeamMemberSlot(this)" title="Remove Member">✕</button>`;
+                    <div style="display:flex;gap:10px;align-items:center;">
+                        <span style="min-width:30px;color:#888;font-weight:bold;">#${i+1}</span>
+                        <select class="teamMemberSelect" style="flex:1;" onchange="updateAutoCalculatedShows()">
+                            <option value="">Select Wrestler</option>
+                            ${pool.map(w => {
+                                const wrestlerShows = getWrestlerShows(w.name);
+                                const label = wrestlerShows.length ? `${w.name} (${wrestlerShows.join(', ')})` : `${w.name} (Unassigned)`;
+                                return `<option value="${w.name}">${label}</option>`;
+                            }).join('')}
+                        </select>
+                        <button type="button" class="btn btn-danger" style="padding:8px 14px;" onclick="removeTeamMemberSlot(this)" title="Remove Member">✕</button>
+                    </div>
+                    <div style="color:#bbb;font-size:0.8em;padding-left:42px;">Show: <strong>${showText}</strong></div>`;
                 container.appendChild(div);
                 if (m) div.querySelector('.teamMemberSelect').value = m;
             });
-            if (members.length === 0 || (members.length === 1 && !members[0])) {
-                container.innerHTML = '<div style="color:#888;text-align:center;padding:20px;font-style:italic;">No members added yet. Click "+ Add Member" below.</div>';
-            }
+            
             updateAutoCalculatedShows();
         }
 
@@ -2673,11 +2965,8 @@
             const members = Array.from(document.querySelectorAll('.teamMemberSelect')).map(s => s.value).filter(Boolean);
             const calculatedShows = new Set();
             members.forEach(memberName => {
-                const wrestler = wrestlers.find(w => w.name === memberName);
-                if (wrestler) {
-                    const wrestlerShows = wrestler.shows && wrestler.shows.length > 0 ? wrestler.shows : (wrestler.show ? [wrestler.show] : []);
-                    wrestlerShows.forEach(show => calculatedShows.add(show));
-                }
+                const wrestlerShows = getWrestlerShows(memberName);
+                wrestlerShows.forEach(show => calculatedShows.add(show));
             });
             const container = document.getElementById('autoCalculatedShows');
             if (calculatedShows.size === 0) {
@@ -2687,6 +2976,18 @@
                     `<span class="badge badge-info" style="margin: 2px;">${show}</span>`
                 ).join('');
             }
+
+            const memberRows = document.querySelectorAll('.teamMemberSelect');
+            memberRows.forEach(select => {
+                const row = select.closest('div');
+                if (!row) return;
+                const showText = row.querySelector('div:last-child');
+                if (!showText) return;
+                const selected = select.value;
+                const wrestlerShows = getWrestlerShows(selected);
+                const showsString = wrestlerShows.length ? wrestlerShows.join(', ') : 'Unassigned';
+                showText.innerHTML = `Show: <strong>${showsString}</strong>`;
+            });
         }
 
         function addTeamMemberSlot() {
@@ -2780,6 +3081,7 @@
             document.getElementById('teamEditId').value = id;
             document.getElementById('teamModalTitle').textContent = 'Edit Team / Faction';
             document.getElementById('teamName').value = t.name;
+            document.getElementById('teamIsCurrent').checked = !!(t.isCurrent);
             buildTeamMemberSlots(t.members);
             buildTagPairSlots(t.tagTeamPairs && t.tagTeamPairs.length > 0 ? t.tagTeamPairs : [{ member1: '', member2: '' }]);
             openModal('teamModal');
@@ -2791,23 +3093,22 @@
             const name = document.getElementById('teamName').value.trim();
             const members = Array.from(document.querySelectorAll('.teamMemberSelect')).map(s => s.value).filter(Boolean);
             if (members.length === 0) return alert('Add at least one team member');
+            if (!validateTeamMembers()) return;
             
             // Auto-calculate shows from team members
             const calculatedShows = new Set();
             members.forEach(memberName => {
-                const wrestler = wrestlers.find(w => w.name === memberName);
-                if (wrestler) {
-                    const wrestlerShows = wrestler.shows && wrestler.shows.length > 0 ? wrestler.shows : (wrestler.show ? [wrestler.show] : []);
-                    wrestlerShows.forEach(show => calculatedShows.add(show));
-                }
+                const wrestlerShows = getWrestlerShows(memberName);
+                wrestlerShows.forEach(show => calculatedShows.add(show));
             });
             const shows = Array.from(calculatedShows);
             
             const tagTeamPairs = getTagPairsFromForm();
+            const isCurrent = document.getElementById('teamIsCurrent').checked ? 1 : 0;
             const method = id ? 'PUT' : 'POST';
             const url = id ? `${API}/teams/${id}` : `${API}/teams`;
             try {
-                const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name, shows, members, tagTeamPairs }) });
+                const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name, shows, members, tagTeamPairs, isCurrent }) });
                 if (res.ok) { closeModal('teamModal'); await loadTeams(); }
                 else { const e = await res.json(); alert(e.error || 'Error saving team'); }
             } catch(err) { alert('Error saving team'); }
@@ -3102,6 +3403,7 @@
                             <td>
                                 <div class="action-buttons">
                                     <button class="btn btn-secondary" onclick="editMatch(${m.id})">Edit</button>
+                                    <button class="btn" style="background:#7c2d12;color:#fca5a5;border:1px solid #b91c1c;" onclick="createRivalryFromMatch(${m.id})" title="Initiate Rivalry from this match">⚔️ Rivalry</button>
                                     <button class="btn btn-danger" onclick="deleteMatch(${m.id})">Delete</button>
                                 </div>
                             </td>
@@ -3459,7 +3761,8 @@
             'Hell in a Cell': 2, 'Ladder Match': 2, 'TLC Match': 2,
             'Elimination Chamber': 6, 'Royal Rumble': 4, 'War Games': 4,
             'Last Man Standing': 2, 'I Quit Match': 2, 'Steel Cage Match': 2,
-            '3 Stages of Hell': 2, 'Ambulance Match': 2
+            '3 Stages of Hell': 2, 'Ambulance Match': 2,
+            'Gauntlet Match': 6, 'Gauntlet Eliminator': 6
         };
 
         function openCreateMainEventModal(editId) {
@@ -3574,7 +3877,7 @@
                 buildMEMatchSlots(ME_MATCH_SLOTS[m.type]||2, poolTag);
                 setTimeout(() => {
                     [m.participant1,m.participant2,m.participant3,m.participant4,m.participant5,m.participant6,m.participant7,m.participant8].forEach((p,i) => {
-                        const s = document.getElementById(`meMP${i+1}`); if(s&&p) s.value=p;
+                        if (p) ssSetValue(`meMP${i+1}`, p);
                     });
                 }, 0);
                 // Fix #23: use current show filter for champ dropdown
@@ -3660,11 +3963,12 @@
                         row.className = 'form-row';
                         for (let j = i; j < Math.min(i + 2, teamSize); j++) {
                             slotIndex++;
-                            const required = slotIndex === 1 ? 'required' : '';
+                            const required = slotIndex === 1;
                             const label = `Member ${j + 1}${slotIndex === 1 ? ' *' : ''}`;
-                            row.innerHTML += `<div class="form-group"><label>${label}</label>
-                                <select id="meMP${slotIndex}" ${required}><option value="">Select Superstar</option>
-                                ${pool.map(w=>`<option value="${w.name}">${w.name} (${w.show})</option>`).join('')}</select></div>`;
+                            const cell = document.createElement('div');
+                            cell.className = 'form-group';
+                            cell.innerHTML = `<label>${label}</label>${createSearchableSelect('meMP' + slotIndex, pool, required)}`;
+                            row.appendChild(cell);
                         }
                         if (teamSize % 2 !== 0 && i + 2 > teamSize) row.innerHTML += '<div class="form-group"></div>';
                         grid.appendChild(row);
@@ -3676,9 +3980,12 @@
                     const row = document.createElement('div'); row.className = 'form-row';
                     for (let j = i; j < Math.min(i+2, count); j++) {
                         const num = j+1;
-                        row.innerHTML += `<div class="form-group"><label>${num===1?'Participant 1 *':'Participant '+num}</label>
-                            <select id="meMP${num}" ${num===1?'required':''}><option value="">Select Superstar</option>
-                            ${pool.map(w=>`<option value="${w.name}">${w.name} (${w.show})</option>`).join('')}</select></div>`;
+                        const required = num === 1;
+                        const label = num === 1 ? 'Participant 1 *' : `Participant ${num}`;
+                        const cell = document.createElement('div');
+                        cell.className = 'form-group';
+                        cell.innerHTML = `<label>${label}</label>${createSearchableSelect('meMP' + num, pool, required)}`;
+                        row.appendChild(cell);
                     }
                     if (count%2!==0 && i+2>count) row.innerHTML+='<div class="form-group"></div>';
                     grid.appendChild(row);
@@ -3709,7 +4016,7 @@
             let startSlot = _meTeamFillSlot;
             if (startSlot + teamSize > count) startSlot = 0;
             const members = team.members.filter(m => pool.find(w => w.name === m)).slice(0, teamSize);
-            members.forEach((name, i) => { const sel = document.getElementById(`meMP${startSlot + i + 1}`); if (sel) sel.value = name; });
+            members.forEach((name, i) => { ssSetValue(`meMP${startSlot + i + 1}`, name); });
             _meTeamFillSlot = startSlot + teamSize;
             if (_meTeamFillSlot >= count) _meTeamFillSlot = 0;
         }
@@ -3727,7 +4034,7 @@
             buildMEMatchSlots(ME_MATCH_SLOTS[type]||2, poolTag);
             if (matchId) {
                 const m = allMatches.find(x => x.id == matchId);
-                if (m) setTimeout(() => { [m.participant1,m.participant2,m.participant3,m.participant4,m.participant5,m.participant6,m.participant7,m.participant8].forEach((p,i) => { const s=document.getElementById(`meMP${i+1}`); if(s&&p) s.value=p; }); }, 0);
+                if (m) setTimeout(() => { [m.participant1,m.participant2,m.participant3,m.participant4,m.participant5,m.participant6,m.participant7,m.participant8].forEach((p,i) => { if(p) ssSetValue(`meMP${i+1}`, p); }); }, 0);
             }
         }
 
@@ -3740,7 +4047,7 @@
             buildMEMatchSlots(ME_MATCH_SLOTS[type]||2, poolTag);
             if (matchId) {
                 const m = allMatches.find(x => x.id == matchId);
-                if (m) setTimeout(() => { [m.participant1,m.participant2,m.participant3,m.participant4,m.participant5,m.participant6,m.participant7,m.participant8].forEach((p,i) => { const s=document.getElementById(`meMP${i+1}`); if(s&&p) s.value=p; }); }, 0);
+                if (m) setTimeout(() => { [m.participant1,m.participant2,m.participant3,m.participant4,m.participant5,m.participant6,m.participant7,m.participant8].forEach((p,i) => { if(p) ssSetValue(`meMP${i+1}`, p); }); }, 0);
             }
         }
 
@@ -3793,20 +4100,11 @@
                         // Tag team champions - split and fill first 2 slots
                         const members = holder.split(' & ');
                         members.forEach((name, idx) => {
-                            const slot = document.getElementById(`meMP${idx + 1}`);
-                            if (slot) {
-                                for (let i = 0; i < slot.options.length; i++) {
-                                    if (slot.options[i].value === name.trim()) {
-                                        slot.value = name.trim();
-                                        break;
-                                    }
-                                }
-                            }
+                            ssSetValue(`meMP${idx + 1}`, name.trim());
                         });
                     } else {
                         // Single champion
-                        const p1 = document.getElementById('meMP1');
-                        if (p1) for (let i = 0; i < p1.options.length; i++) { if (p1.options[i].value === holder) { p1.value = holder; break; } }
+                        ssSetValue('meMP1', holder);
                     }
                 }, 0);
             }
@@ -3993,7 +4291,8 @@
             'Last Man Standing': 2, 'Iron Man Match': 2,
             'Ambulance Match': 2, 'Casket Match': 2, 'Dumpster Match': 2,
             'I Quit Match': 2, 'Inferno Match': 2, '3 Stages of Hell': 2,
-            'Battle Royal': 4
+            'Battle Royal': 4,
+            'Gauntlet Match': 6, 'Gauntlet Eliminator': 6
         };
 
         // Team structure for match types (how many teams and members per team)
@@ -4033,6 +4332,155 @@
             return pool;
         }
 
+        // ==================== SEARCHABLE PARTICIPANT SELECT ====================
+        // Creates a text-search widget that wraps a hidden <select> so all existing
+        // getElementById(id).value reads continue to work unchanged.
+        function createSearchableSelect(id, pool, required, currentValue = '') {
+            const reqAttr = required ? 'required' : '';
+            const placeholder = required ? 'Search superstar... *' : 'Search superstar...';
+
+            // Build option list HTML (hidden select keeps the real value)
+            const optionsHtml = pool.map(w =>
+                `<option value="${w.name}"${currentValue === w.name ? ' selected' : ''}>${w.name} (${w.show})</option>`
+            ).join('');
+
+            // Display label for the current value
+            const currentLabel = currentValue
+                ? (pool.find(w => w.name === currentValue)
+                    ? `${currentValue} (${pool.find(w => w.name === currentValue).show})`
+                    : currentValue)
+                : '';
+
+            return `
+            <div class="ss-wrap" id="ss-wrap-${id}">
+                <input type="text" class="ss-input" id="ss-input-${id}"
+                    placeholder="${placeholder}"
+                    value="${currentLabel.replace(/"/g, '&quot;')}"
+                    autocomplete="off"
+                    onfocus="ssOpen('${id}')"
+                    oninput="ssFilter('${id}')"
+                    onblur="ssBlur('${id}')"
+                    onkeydown="ssKey(event,'${id}')">
+                <div class="ss-dropdown" id="ss-dd-${id}"></div>
+                <select id="${id}" class="ss-hidden" ${reqAttr}>
+                    <option value="">Select Superstar</option>
+                    ${optionsHtml}
+                </select>
+            </div>`;
+        }
+
+        // Populate and open dropdown
+        function ssOpen(id) {
+            ssPopulate(id, document.getElementById(`ss-input-${id}`).value);
+        }
+
+        // Filter options as user types
+        function ssFilter(id) {
+            const q = document.getElementById(`ss-input-${id}`).value;
+            ssPopulate(id, q);
+            // Clear hidden select if text was manually changed
+            const sel = document.getElementById(id);
+            if (sel) sel.value = '';
+        }
+
+        // Build dropdown items matching query
+        function ssPopulate(id, query) {
+            const dd = document.getElementById(`ss-dd-${id}`);
+            const sel = document.getElementById(id);
+            if (!dd || !sel) return;
+
+            const q = (query || '').toLowerCase().trim();
+            const currentVal = sel.value;
+
+            const items = Array.from(sel.options)
+                .filter(o => o.value !== '')
+                .filter(o => !q || o.text.toLowerCase().includes(q));
+
+            if (items.length === 0) {
+                dd.innerHTML = '<div class="ss-option no-match">No superstars found</div>';
+            } else {
+                dd.innerHTML = items.map(o =>
+                    `<div class="ss-option${o.value === currentVal ? ' selected' : ''}"
+                        data-value="${o.value}"
+                        data-label="${o.text.replace(/"/g, '&quot;')}"
+                        onmousedown="ssPick('${id}', this)">
+                        ${o.text}
+                    </div>`
+                ).join('');
+            }
+
+            dd.classList.add('open');
+        }
+
+        // Select an option from the dropdown
+        function ssPick(id, el) {
+            const val = el.dataset.value;
+            const label = el.dataset.label;
+            const input = document.getElementById(`ss-input-${id}`);
+            const sel = document.getElementById(id);
+            if (input) input.value = label;
+            if (sel) sel.value = val;
+            const dd = document.getElementById(`ss-dd-${id}`);
+            if (dd) dd.classList.remove('open');
+        }
+
+        // Close dropdown on blur (mousedown on option fires before blur, so ssPick runs first)
+        function ssBlur(id) {
+            setTimeout(() => {
+                const dd = document.getElementById(`ss-dd-${id}`);
+                if (dd) dd.classList.remove('open');
+                // If input text doesn't match the selected value, clear both
+                const sel = document.getElementById(id);
+                const input = document.getElementById(`ss-input-${id}`);
+                if (!sel || !input) return;
+                const selText = sel.options[sel.selectedIndex]?.text || '';
+                if (sel.value && input.value && !input.value.startsWith(sel.value)) {
+                    // Restore to currently selected value label
+                    input.value = selText;
+                }
+            }, 150);
+        }
+
+        // Keyboard navigation
+        function ssKey(e, id) {
+            const dd = document.getElementById(`ss-dd-${id}`);
+            if (!dd || !dd.classList.contains('open')) return;
+            const items = dd.querySelectorAll('.ss-option:not(.no-match)');
+            const active = dd.querySelector('.ss-option.active');
+            let idx = Array.from(items).indexOf(active);
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (active) active.classList.remove('active');
+                idx = (idx + 1) % items.length;
+                items[idx]?.classList.add('active');
+                items[idx]?.scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (active) active.classList.remove('active');
+                idx = (idx - 1 + items.length) % items.length;
+                items[idx]?.classList.add('active');
+                items[idx]?.scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (active) ssPick(id, active);
+            } else if (e.key === 'Escape') {
+                dd.classList.remove('open');
+            }
+        }
+
+        // Set value on a searchable select programmatically (used by autoFill, restore, champion auto-fill)
+        function ssSetValue(id, value) {
+            const sel = document.getElementById(id);
+            const input = document.getElementById(`ss-input-${id}`);
+            if (!sel) return;
+            sel.value = value;
+            if (input) {
+                const opt = Array.from(sel.options).find(o => o.value === value);
+                input.value = opt ? opt.text : value;
+            }
+        }
+
+        // ==================== MATCH PARTICIPANT SLOTS ====================
         function buildParticipantSlots(count, show, restoreValues) {
             const type = document.getElementById('matchType').value;
             const showData = shows.find(s => s.name === show);
@@ -4089,16 +4537,12 @@
                         row.className = 'form-row';
                         for (let j = i; j < Math.min(i + 2, teamSize); j++) {
                             slotIndex++;
-                            const required = slotIndex === 1 ? 'required' : '';
+                            const required = slotIndex === 1;
                             const label = `Member ${j + 1}${slotIndex === 1 ? ' *' : ''}`;
-                            row.innerHTML += `
-                                <div class="form-group">
-                                    <label>${label}</label>
-                                    <select id="matchP${slotIndex}" ${required}>
-                                        <option value="">Select Superstar</option>
-                                        ${pool.map(w => `<option value="${w.name}">${w.name} (${w.show})</option>`).join('')}
-                                    </select>
-                                </div>`;
+                            const cell = document.createElement('div');
+                            cell.className = 'form-group';
+                            cell.innerHTML = `<label>${label}</label>${createSearchableSelect('matchP' + slotIndex, pool, required)}`;
+                            row.appendChild(cell);
                         }
                         if (teamSize % 2 !== 0 && i + 2 > teamSize) row.innerHTML += '<div class="form-group"></div>';
                         grid.appendChild(row);
@@ -4111,16 +4555,12 @@
                     row.className = 'form-row';
                     for (let j = i; j < Math.min(i + 2, count); j++) {
                         const num = j + 1;
-                        const required = num === 1 ? 'required' : '';
+                        const required = num === 1;
                         const label = num === 1 ? 'Participant 1 *' : `Participant ${num}`;
-                        row.innerHTML += `
-                            <div class="form-group">
-                                <label>${label}</label>
-                                <select id="matchP${num}" ${required}>
-                                    <option value="">Select Superstar</option>
-                                    ${pool.map(w => `<option value="${w.name}">${w.name} (${w.show})</option>`).join('')}
-                                </select>
-                            </div>`;
+                        const cell = document.createElement('div');
+                        cell.className = 'form-group';
+                        cell.innerHTML = `<label>${label}</label>${createSearchableSelect('matchP' + num, pool, required)}`;
+                        row.appendChild(cell);
                     }
                     if (count % 2 !== 0 && i + 2 > count) row.innerHTML += '<div class="form-group"></div>';
                     grid.appendChild(row);
@@ -4128,7 +4568,7 @@
             }
 
             if (restoreValues) {
-                restoreValues.forEach((p, i) => { const el = document.getElementById(`matchP${i+1}`); if (el && p) el.value = p; });
+                restoreValues.forEach((p, i) => { if (p) ssSetValue(`matchP${i+1}`, p); });
             }
         }
 
@@ -4152,8 +4592,7 @@
             if (startSlot + teamSize > count) startSlot = 0;
             const members = team.members.filter(m => pool.find(w => w.name === m)).slice(0, teamSize);
             members.forEach((name, i) => {
-                const sel = document.getElementById(`matchP${startSlot + i + 1}`);
-                if (sel) sel.value = name;
+                ssSetValue(`matchP${startSlot + i + 1}`, name);
             });
             _teamFillSlot = startSlot + teamSize;
             if (_teamFillSlot >= count) _teamFillSlot = 0;
@@ -4288,24 +4727,11 @@
                         // Tag team champions - split and fill first 2 slots
                         const members = holder.split(' & ');
                         members.forEach((name, idx) => {
-                            const slot = document.getElementById(`matchP${idx + 1}`);
-                            if (slot) {
-                                for (let i = 0; i < slot.options.length; i++) {
-                                    if (slot.options[i].value === name.trim()) {
-                                        slot.value = name.trim();
-                                        break;
-                                    }
-                                }
-                            }
+                            ssSetValue(`matchP${idx + 1}`, name.trim());
                         });
                     } else {
                         // Single champion
-                        const p1 = document.getElementById('matchP1');
-                        if (p1) {
-                            for (let i = 0; i < p1.options.length; i++) {
-                                if (p1.options[i].value === holder) { p1.value = holder; break; }
-                            }
-                        }
+                        ssSetValue('matchP1', holder);
                     }
                 }, 0);
             }
@@ -4406,7 +4832,8 @@
 
         function openAddMatchModal() {
             document.getElementById('matchId').value = '';
-            document.getElementById('matchShow').value = '';
+            const activeShow = document.getElementById('activeShowSelector').value || '';
+            document.getElementById('matchShow').value = activeShow;
             document.getElementById('matchCategory').value = 'Normal';
             document.getElementById('matchType').value = 'One vs One';
             document.getElementById('matchDate').value = '';
@@ -4417,7 +4844,11 @@
             document.getElementById('matchIsImportant').checked = false;
             document.querySelector('#matchModal .modal-header h2').textContent = 'Schedule Match';
             _teamFillSlot = 0;
-            buildParticipantSlots(2, '');
+            buildParticipantSlots(2, activeShow);
+            if (activeShow) {
+                onMatchTypeOrShowChange();
+                populateMatchChampionships(activeShow, null);
+            }
             openModal('matchModal');
         }
 
@@ -4987,16 +5418,23 @@
             const html = filtered.length > 0
                 ? filtered.map(r => {
                     const statusBadge = r.status === 'Active' ? 'badge-success' : r.status === 'Completed' ? 'badge-info' : 'badge-warning';
+                    // Linked matches count
+                    const linkedCount = allMatches.filter(m => m.rivalryId === r.id).length;
+                    const matchBadge = linkedCount > 0 ? `<span class="badge badge-info" style="margin-left:6px;font-size:0.75em;">${linkedCount} match${linkedCount !== 1 ? 'es' : ''}</span>` : '';
                     return `<tr>
-                        <td><strong>${r.wrestler1}</strong> vs <strong>${r.wrestler2}</strong></td>
-                        <td>${r.show}</td>
+                        <td><strong>${r.wrestler1}</strong> <span style="color:var(--red);">vs</span> <strong>${r.wrestler2}</strong>${matchBadge}</td>
+                        <td>${r.show || '-'}</td>
                         <td><span class="badge ${statusBadge}">${r.status}</span></td>
-                        <td>${new Date(r.startDate).toLocaleDateString()}</td>
+                        <td>${r.startDate ? new Date(r.startDate).toLocaleDateString() : '-'}</td>
                         <td>${r.endDate ? new Date(r.endDate).toLocaleDateString() : '-'}</td>
                         <td style="max-width:200px;word-wrap:break-word;">${r.description || '-'}</td>
+                        <td><div class="action-buttons">
+                            <button class="btn btn-secondary" style="padding:5px 10px;font-size:0.8em;" onclick="editRivalry(${r.id})">Edit</button>
+                            <button class="btn btn-danger" style="padding:5px 10px;font-size:0.8em;" onclick="deleteRivalry(${r.id})">Delete</button>
+                        </div></td>
                     </tr>`;
                 }).join('')
-                : '<tr><td colspan="6" class="no-data">No rivalries found</td></tr>';
+                : '<tr><td colspan="7" class="no-data">No rivalries found. Use the ⚔️ Rivalry button on any match to start one.</td></tr>';
 
             document.getElementById('rivalriesTable').innerHTML = html;
         }
@@ -5210,29 +5648,186 @@
             const match = allMatches.find(m => m.id === matchId);
             if (!match) return;
             const participants = [match.participant1, match.participant2, match.participant3, match.participant4, match.participant5, match.participant6, match.participant7, match.participant8].filter(Boolean);
-            if (participants.length < 2) { alert('Match must have at least 2 participants'); return; }
+            if (participants.length < 1) { alert('Match must have at least one participant to initiate a rivalry'); return; }
+
             // Remove any existing modal first
             const existingModal = document.getElementById('rivalryFromMatchModal');
             if (existingModal) existingModal.remove();
-            const html = `<div id="rivalryFromMatchModal" class="modal active"><div class="modal-content"><div class="modal-header"><h2>Create Rivalry from Match</h2><button class="close-btn" onclick="document.getElementById('rivalryFromMatchModal').remove()">&times;</button></div><form onsubmit="saveRivalryFromMatch(event, ${matchId})"><div class="form-row"><div class="form-group"><label>Wrestler in Match *</label><select id="rivalryMatchWrestler" required><option value="">Select Wrestler</option>${participants.map(p => `<option value="${p}">${p}</option>`).join('')}</select></div><div class="form-group"><label>Rival (Any Wrestler) *</label><select id="rivalryOpponent" required><option value="">Select Wrestler</option>${wrestlers.map(w => `<option value="${w.name}">${w.name}</option>`).join('')}</select></div></div><div class="form-group"><label>Show *</label><select id="rivalryMatchShow" required><option value="">Select Show</option>${shows.map(s => `<option value="${s.name}">${s.name}</option>`).join('')}</select></div><div class="form-group"><label>Status *</label><select id="rivalryMatchStatus" required><option value="Active">Active</option><option value="On Hold">On Hold</option><option value="Completed">Completed</option></select></div><div class="form-row"><div class="form-group"><label>Start Date *</label><input type="date" id="rivalryMatchStartDate" required value="${match.date.split('T')[0]}"></div><div class="form-group"><label>End Date</label><input type="date" id="rivalryMatchEndDate"></div></div><div class="form-group"><label>Description</label><textarea id="rivalryMatchDescription" rows="3">${match.notes || ''}</textarea></div><div class="form-actions"><button type="button" class="btn btn-secondary" onclick="document.getElementById('rivalryFromMatchModal').remove()">Cancel</button><button type="submit" class="btn btn-primary">Create Rivalry</button></div></form></div></div>`;
+
+            // Build option lists
+            const participantOpts = participants.map(p => `<option value="${p}">${p}</option>`).join('');
+            const allWrestlerOpts = wrestlers.map(w => `<option value="${w.name}">${w.name} (${w.show})</option>`).join('');
+            const showOpts = shows.map(s => `<option value="${s.name}"${s.name === match.show ? ' selected' : ''}>${s.name}</option>`).join('');
+            const cleanNotes = (match.notes || '')
+                .replace(/\[MEMATCH:[^\]]+\]/g, '').replace(/\[MEEVENT\]/g, '')
+                .replace(/\[MENAME:[^\]]+\]/g, '').replace(/\[POOLS:[^\]]+\]/g, '')
+                .replace(/\[LIMIT:[^\]]+\]/g, '').trim();
+
+            const sideHtml = (side, label) => `
+                <div class="form-group">
+                    <label>${label} *</label>
+                    <div style="display:flex;gap:8px;margin-bottom:6px;">
+                        <button type="button"
+                            id="rfm-toggle-${side}-match"
+                            class="btn btn-secondary rfm-toggle active"
+                            onclick="rfmToggleSide('${side}','match')"
+                            style="font-size:0.8em;padding:4px 10px;">From Match</button>
+                        <button type="button"
+                            id="rfm-toggle-${side}-external"
+                            class="btn rfm-toggle"
+                            onclick="rfmToggleSide('${side}','external')"
+                            style="font-size:0.8em;padding:4px 10px;background:#1a1a1a;border:1px solid #555;color:#aaa;">External</button>
+                    </div>
+                    <select id="rfm-${side}-match" class="rfm-sel-match-${side}">
+                        <option value="">Select participant</option>
+                        ${participantOpts}
+                    </select>
+                    <select id="rfm-${side}-external" class="rfm-sel-ext-${side}" style="display:none;">
+                        <option value="">Select any wrestler</option>
+                        ${allWrestlerOpts}
+                    </select>
+                </div>`;
+
+            const html = `
+            <div id="rivalryFromMatchModal" class="modal active">
+                <div class="modal-content" style="max-width:520px;">
+                    <div class="modal-header">
+                        <h2>⚔️ Initiate Rivalry from Match</h2>
+                        <button class="close-btn" onclick="document.getElementById('rivalryFromMatchModal').remove()">&times;</button>
+                    </div>
+                    <div style="background:rgba(185,28,28,0.1);border:1px solid rgba(185,28,28,0.3);border-radius:6px;padding:8px 12px;margin-bottom:14px;font-size:0.85em;color:#fca5a5;">
+                        Match: <strong>${match.type}</strong> — ${participants.join(' vs ')} — <em>${match.show}, ${match.date ? new Date(match.date).toLocaleDateString() : ''}</em>
+                    </div>
+                    <form onsubmit="saveRivalryFromMatch(event, ${matchId})">
+                        <div class="form-row">
+                            ${sideHtml('w1', 'Side 1 (Wrestler)')}
+                            ${sideHtml('w2', 'Side 2 (Rival)')}
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Show *</label>
+                                <select id="rfm-show" required>
+                                    <option value="">Select Show</option>
+                                    ${showOpts}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Status</label>
+                                <select id="rfm-status">
+                                    <option value="Active">Active</option>
+                                    <option value="On Hold">On Hold</option>
+                                    <option value="Completed">Completed</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Start Date *</label>
+                                <input type="date" id="rfm-start" required value="${match.date ? match.date.split('T')[0] : ''}">
+                            </div>
+                            <div class="form-group">
+                                <label>End Date</label>
+                                <input type="date" id="rfm-end">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Description</label>
+                            <textarea id="rfm-desc" rows="3" placeholder="Describe what sparked this rivalry...">${cleanNotes}</textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('rivalryFromMatchModal').remove()">Cancel</button>
+                            <button type="submit" class="btn btn-primary">⚔️ Create Rivalry</button>
+                        </div>
+                    </form>
+                </div>
+            </div>`;
             document.body.insertAdjacentHTML('beforeend', html);
+        }
+
+        // Toggle a rivalry side between "from match participants" and "external wrestler"
+        function rfmToggleSide(side, mode) {
+            const matchSel    = document.getElementById(`rfm-${side}-match`);
+            const extSel      = document.getElementById(`rfm-${side}-external`);
+            const matchToggle = document.getElementById(`rfm-toggle-${side}-match`);
+            const extToggle   = document.getElementById(`rfm-toggle-${side}-external`);
+
+            const isMatch = mode === 'match';
+            matchSel.style.display    = isMatch ? '' : 'none';
+            extSel.style.display      = isMatch ? 'none' : '';
+            matchSel.required         = isMatch;
+            extSel.required           = !isMatch;
+            // Reset the hidden one so it doesn't carry a stale value
+            if (isMatch) extSel.value = '';
+            else matchSel.value = '';
+
+            // Button styling
+            matchToggle.style.cssText = isMatch
+                ? 'font-size:0.8em;padding:4px 10px;'
+                : 'font-size:0.8em;padding:4px 10px;background:#1a1a1a;border:1px solid #555;color:#aaa;';
+            extToggle.style.cssText = !isMatch
+                ? 'font-size:0.8em;padding:4px 10px;'
+                : 'font-size:0.8em;padding:4px 10px;background:#1a1a1a;border:1px solid #555;color:#aaa;';
+            if (isMatch) { matchToggle.classList.add('active'); extToggle.classList.remove('active'); }
+            else         { extToggle.classList.add('active');   matchToggle.classList.remove('active'); }
+        }
+
+        // Read value from whichever side selector is active
+        function rfmGetSideValue(side) {
+            const matchSel = document.getElementById(`rfm-${side}-match`);
+            const extSel   = document.getElementById(`rfm-${side}-external`);
+            // Whichever is visible is active
+            return matchSel && matchSel.style.display !== 'none' ? matchSel.value : (extSel ? extSel.value : '');
         }
 
         async function saveRivalryFromMatch(e, matchId) {
             e.preventDefault();
-            const wrestler1 = document.getElementById('rivalryMatchWrestler').value;
-            const wrestler2 = document.getElementById('rivalryOpponent').value;
-            const show = document.getElementById('rivalryMatchShow').value;
-            const status = document.getElementById('rivalryMatchStatus').value;
-            const startDate = document.getElementById('rivalryMatchStartDate').value;
-            const endDate = document.getElementById('rivalryMatchEndDate').value || null;
-            const description = document.getElementById('rivalryMatchDescription').value;
-            if (wrestler1 === wrestler2) { alert('Please select different wrestlers'); return; }
+            const wrestler1   = rfmGetSideValue('w1');
+            const wrestler2   = rfmGetSideValue('w2');
+            const show        = document.getElementById('rfm-show').value;
+            const status      = document.getElementById('rfm-status').value;
+            const startDate   = document.getElementById('rfm-start').value;
+            const endDate     = document.getElementById('rfm-end').value || null;
+            const description = document.getElementById('rfm-desc').value;
+
+            if (!wrestler1) { alert('Please select Side 1 wrestler'); return; }
+            if (!wrestler2) { alert('Please select Side 2 wrestler'); return; }
+            if (wrestler1 === wrestler2) { alert('Both sides cannot be the same wrestler'); return; }
+            if (!show) { alert('Please select a show'); return; }
+
             try {
-                const res = await fetch(`${API}/rivalries`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ wrestler1, wrestler2, show, status, startDate, endDate, description }) });
-                if (res.ok) { document.getElementById('rivalryFromMatchModal').remove(); await loadRivalriesForStorylines(); alert('Rivalry created!'); }
-                else { const err = await res.json(); alert(err.error || 'Error creating rivalry'); }
-            } catch (err) { console.error(err); alert('Error creating rivalry'); }
+                // 1. Create the rivalry
+                const rivalryRes = await fetch(`${API}/rivalries`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ wrestler1, wrestler2, show, status, startDate, endDate, description })
+                });
+                if (!rivalryRes.ok) {
+                    const err = await rivalryRes.json();
+                    alert(err.error || 'Error creating rivalry');
+                    return;
+                }
+                const newRivalry = await rivalryRes.json();
+
+                // 2. Link the rivalry back to the originating match
+                const match = allMatches.find(m => m.id === matchId);
+                if (match) {
+                    await fetch(`${API}/matches/${matchId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...match, rivalryId: newRivalry.id })
+                    });
+                    // Update local state so the UI reflects it without a full reload
+                    match.rivalryId = newRivalry.id;
+                }
+
+                document.getElementById('rivalryFromMatchModal').remove();
+                await loadRivalriesForStorylines();
+                await loadMatches();
+                alert(`✅ Rivalry created: ${wrestler1} vs ${wrestler2}`);
+            } catch (err) {
+                console.error('Error creating rivalry:', err);
+                alert('Error creating rivalry');
+            }
         }
 
         // ==================== ACCOUNTS ====================

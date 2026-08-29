@@ -1,0 +1,10 @@
+﻿
+            });
+            if (members.length === 0 || (members.length === 1 && !members[0])) {
+                container.innerHTML = '<div style="color:#888;text-align:center;padding:20px;font-style:italic;">No members added yet. Click "+ Add Member" below.</div>';
+            }
+            updateAutoCalculatedShows();
+        }
+
+        function updateAutoCalculatedShows() {
+         
